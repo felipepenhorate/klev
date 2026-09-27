@@ -8,7 +8,7 @@ share of positions whose argmax token is unchanged. Low KL / high agreement mean
 distillation anchor kept the base distribution; a plain SFT run drifts further (DuplexCascade
 measured 4.76 vs 1.07 with the same statistic).
 
-    /home/penhfel/unsloth_uv/bin/python eval/eval_drift.py --run /mnt/f/distill_jev_runs/main \
+    ./unsloth_uv/bin/python eval/eval_drift.py --run /mnt/f/distill_jev_runs/main \
         --n 200 --out /mnt/f/distill_jev_runs/drift-trained
 """
 import argparse

@@ -11,7 +11,7 @@ Output: a `datasets` directory (`--out`) with columns
   input_ids, content_mask, opt_pos, decide_pos
 plus `prep_stats.json` and `prep_config.json`.
 
-    /home/penhfel/unsloth_uv/bin/python data/prep_dataset.py \
+    ./unsloth_uv/bin/python data/prep_dataset.py \
         --suite evals/v7/decision-v7 --split train --out /mnt/f/distill_jev_runs/prep/dv7-smoke \
         --limit 2000 --max-seq 2048 --garbage-frac 0.1
 """

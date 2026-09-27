@@ -32,7 +32,7 @@ LABELS = ["Discussing", "Refuting", "Querying", "Supporting", "Irrelevant"]
 def parse_args():
     ap = argparse.ArgumentParser()
     ap.add_argument("--base-url", required=True)
-    ap.add_argument("--data", default="/home/penhfel/github/training-conversational-stance/Datasets/My Dataset/prompt_eval_my_dataset_claim.json")
+    ap.add_argument("--data", default="./github/training-conversational-stance/Datasets/My Dataset/prompt_eval_my_dataset_claim.json")
     ap.add_argument("--out", required=True)
     ap.add_argument("--concurrency", type=int, default=4)
     ap.add_argument("--limit", type=int, default=0)

@@ -4,7 +4,7 @@
 MMLU / ARC-Challenge / HellaSwag are eval-only here (none is in decision-v7), so pointer-head
 accuracy on them measures what the trained head can tap from the backbone after training.
 
-    /home/penhfel/unsloth_uv/bin/python data/build_bench_records.py --task mmlu --limit 1000 \
+    ./unsloth_uv/bin/python data/build_bench_records.py --task mmlu --limit 1000 \
         --out /mnt/f/distill_jev_runs/bench/mmlu.jsonl
 """
 import argparse

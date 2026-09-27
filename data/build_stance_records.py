@@ -10,7 +10,7 @@ training-conversational-stance/Datasets/Stanceossaurus): the prompt files carry 
 the conversation and the label, so the instruction block is stripped and the claim +
 conversation become the state, with our own stance question.
 
-    /home/penhfel/unsloth_uv/bin/python data/build_stance_records.py --dataset stanceosaurus \
+    ./unsloth_uv/bin/python data/build_stance_records.py --dataset stanceosaurus \
         --prompts .../prompt_eval_stanceossaurus_claim.json,...spanish.json,...russian.json,...arabic.json \
         --limit-per-language 1500 --out /mnt/f/distill_jev_runs/bench/stanceosaurus.jsonl
 """
@@ -27,8 +27,8 @@ import pandas as pd
 
 from data.suites import write_jsonl
 
-COSTBR = Path("/home/penhfel/github/cost-br/parsed_data/csv")
-STANCEOSAURUS = Path("/home/penhfel/github/training-conversational-stance/Datasets/Stanceossaurus")
+COSTBR = Path("./github/cost-br/parsed_data/csv")
+STANCEOSAURUS = Path("./github/training-conversational-stance/Datasets/Stanceossaurus")
 COSTBR_LABELS = {
     "Concorda": ("concorda", "O autor concorda com a afirmação"),
     "Discorda": ("discorda", "O autor discorda da afirmação"),

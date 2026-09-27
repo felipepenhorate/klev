@@ -11,7 +11,7 @@ softcap/tied `lm_head` path is reused.
 
 Rows come from data/prep_dataset.py (`datasets` directory); one row = one question.
 
-    /home/penhfel/unsloth_uv/bin/python training/train_distill.py \
+    ./unsloth_uv/bin/python training/train_distill.py \
         --dataset /mnt/f/distill_jev_runs/prep/dv7-smoke --max-steps 500 \
         --out-dir /mnt/f/distill_jev_runs/smoke --kl-weight 0.3
 """

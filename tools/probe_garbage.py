@@ -11,7 +11,7 @@ answer aligned with option c (decide = option_c * 3 + noise), half are "no optio
   4. the garbage score is exactly permutation-invariant (option order permutes the K
      logits and leaves the garbage logit unchanged).
 
-Run:  /home/penhfel/unsloth_uv/bin/python tools/probe_garbage.py
+Run:  ./unsloth_uv/bin/python tools/probe_garbage.py
 """
 import json
 import sys

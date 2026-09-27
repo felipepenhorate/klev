@@ -16,7 +16,7 @@ Every record is validated (shapes + label/criteria consistency), deduplicated on
 normalized state, screened against the local eval partitions (exact normalized hash), and
 optionally verified by a third pass that answers the questions from the state alone.
 
-    /home/penhfel/unsloth_uv/bin/python data/synth/generate_records.py \
+    ./unsloth_uv/bin/python data/synth/generate_records.py \
         --n 2000 --workers 4 --out /mnt/f/distill_jev_runs/synth/qwen35_v1.jsonl
 """
 import argparse

@@ -4,7 +4,7 @@
 Loads the model once per --gc mode, then times a forward+backward for a short and a long
 prepared row (pointer only, then with the teacher forward + KL).
 
-    /home/penhfel/unsloth_uv/bin/python tools/probe_train_bench.py --gc unsloth
+    ./unsloth_uv/bin/python tools/probe_train_bench.py --gc unsloth
 """
 import argparse
 import json

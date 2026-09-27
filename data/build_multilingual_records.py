@@ -9,7 +9,7 @@ Each dataset contributes a capped train sample and a held-out eval sample (per d
 language), so every model can be scored on the same multilingual scope later. The train side
 is sized for the <=8h delta budget (target ~12k rows); the eval side is never trained on.
 
-    /home/penhfel/unsloth_uv/bin/python data/build_multilingual_records.py \
+    ./unsloth_uv/bin/python data/build_multilingual_records.py \
         --out-dir /mnt/f/distill_jev_runs/multilingual
 """
 import argparse

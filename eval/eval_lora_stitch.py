@@ -10,7 +10,7 @@ Everything is frozen except a handful of scalars fitted on <=30 labelled rows:
 Diagnostics (no training): NCM / logistic probes on h_alp and h_sys.
 
     python eval/eval_lora_stitch.py --run /mnt/f/distill_jev_runs/main \
-        --ext "/home/penhfel/github/Trained Models/My Dataset/gemma-4-e4b_claim" \
+        --ext "./github/Trained Models/My Dataset/gemma-4-e4b_claim" \
         --train /mnt/f/distill_jev_runs/prep/costbr-30 \
         --test /mnt/f/distill_jev_runs/prep/bench-costbr-test \
         --out /mnt/f/distill_jev_runs/stitch
@@ -45,8 +45,8 @@ ALPACA = """Below is an instruction that describes a task, paired with an input 
 ### Response:
 {}"""
 
-TRAIN_PROMPTS = "/home/penhfel/github/training-conversational-stance/Datasets/My Dataset/to_train_prompts_my_dataset_claim.json"
-EVAL_PROMPTS = "/home/penhfel/github/training-conversational-stance/Datasets/My Dataset/prompt_eval_my_dataset_claim.json"
+TRAIN_PROMPTS = "./github/training-conversational-stance/Datasets/My Dataset/to_train_prompts_my_dataset_claim.json"
+EVAL_PROMPTS = "./github/training-conversational-stance/Datasets/My Dataset/prompt_eval_my_dataset_claim.json"
 
 
 def parse_args():

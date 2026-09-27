@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """Score a System One-compatible HTTP endpoint (e.g. the Winnow server) on our bench records.
 
-    /home/penhfel/unsloth_uv/bin/python eval/eval_systemone_http.py \
+    ./unsloth_uv/bin/python eval/eval_systemone_http.py \
         --base-url http://127.0.0.1:8091 --data /mnt/f/distill_jev_runs/bench/mmlu.jsonl \
         --out /mnt/f/distill_jev_runs/winnow-mmlu --concurrency 4
 

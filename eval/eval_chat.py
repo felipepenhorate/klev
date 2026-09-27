@@ -11,9 +11,9 @@ implements the same scoring contract for the tasks that matter for retention:
 
 Run the same command with and without `--run` (adapter) and compare:
 
-    /home/penhfel/unsloth_uv/bin/python eval/eval_chat.py --tasks hellaswag,arc_challenge,mmlu \
+    ./unsloth_uv/bin/python eval/eval_chat.py --tasks hellaswag,arc_challenge,mmlu \
         --limit 1000 --out /mnt/f/distill_jev_runs/chat-base
-    /home/penhfel/unsloth_uv/bin/python eval/eval_chat.py --run /mnt/f/distill_jev_runs/main \
+    ./unsloth_uv/bin/python eval/eval_chat.py --run /mnt/f/distill_jev_runs/main \
         --tasks hellaswag,arc_challenge,mmlu --limit 1000 --out /mnt/f/distill_jev_runs/chat-trained
 """
 import argparse

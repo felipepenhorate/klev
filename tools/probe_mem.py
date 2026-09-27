@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """Find what allocates the 8 GB on a long row: forward-only vs grad-forward vs backward, plus a
 memory-history snapshot of the biggest blocks. Run:
-    /home/penhfel/unsloth_uv/bin/python tools/probe_mem.py --gc unsloth
+    ./unsloth_uv/bin/python tools/probe_mem.py --gc unsloth
 """
 import argparse
 import sys

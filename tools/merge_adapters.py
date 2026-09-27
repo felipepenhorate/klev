@@ -13,7 +13,7 @@ from the Hub, and evaluates several adapter combinations with the same head:
 Metrics: decision-v7 development (system_one), MMLU/ARC pointer benchmarks, and a chat-mode
 slice (HellaSwag/MMLU) so capability changes are visible.
 
-    /home/penhfel/unsloth_uv/bin/python tools/merge_adapters.py \
+    ./unsloth_uv/bin/python tools/merge_adapters.py \
         --run /mnt/f/distill_jev_runs/main --other armand0e/Gemma-4-E4B-it-Fable-Distill-LoRA \
         --out /mnt/f/distill_jev_runs/merge-fable
 """

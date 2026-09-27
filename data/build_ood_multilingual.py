@@ -7,7 +7,7 @@ languages, paraphrase `noul`), MasakhaNEWS (8 African languages + fr, topic choi
 Together with Stanceosaurus and CoSt-BR (built separately) this is the multilingual OOD
 scope every model is scored on.
 
-    /home/penhfel/unsloth_uv/bin/python data/build_ood_multilingual.py \
+    ./unsloth_uv/bin/python data/build_ood_multilingual.py \
         --out /mnt/f/distill_jev_runs/ood-multilingual.jsonl
 """
 import argparse

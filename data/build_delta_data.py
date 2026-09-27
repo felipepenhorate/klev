@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """Combine synthetic decision records with a replay sample from decision-v7 for a delta stage.
 
-    /home/penhfel/unsloth_uv/bin/python data/build_delta_data.py \
+    ./unsloth_uv/bin/python data/build_delta_data.py \
         --synth /mnt/f/distill_jev_runs/synth/qwen35_v1.jsonl --replay 4000 \
         --out /mnt/f/distill_jev_runs/synth/delta-v1.jsonl
 """

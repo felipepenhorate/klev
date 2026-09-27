@@ -5,7 +5,7 @@ Loads the base + saved adapter + head.pt (+ delimiter deltas), runs the pointer 
 every prepared row and writes `rows.json` + `report.json` (accuracy, Brier, ECE, NLL,
 coverage@5% error, AURC) with `data/metrics.py`.
 
-    /home/penhfel/unsloth_uv/bin/python eval/eval_decisions.py \
+    ./unsloth_uv/bin/python eval/eval_decisions.py \
         --run /mnt/f/distill_jev_runs/smoke --dataset /mnt/f/distill_jev_runs/prep/dv7-dev \
         --out /mnt/f/distill_jev_runs/smoke-eval
 """

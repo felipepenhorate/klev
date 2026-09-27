@@ -11,7 +11,7 @@ Output: `--out.npz` with `topk_ids` [P, k] int32, `topk_logits` [P, k] fp16 and 
 [N+1] int64 (row i's positions are offsets[i]:offsets[i+1], in content-mask order), plus
 `--out.json` with the provenance.
 
-    /home/penhfel/unsloth_uv/bin/python data/cache_teacher_logits.py \
+    ./unsloth_uv/bin/python data/cache_teacher_logits.py \
         --dataset /mnt/f/distill_jev_runs/prep/dv7-smoke --out /mnt/f/distill_jev_runs/cache/dv7-smoke --top-k 32
 """
 import argparse

@@ -67,8 +67,8 @@ selected cells (what 27 points can fit).
 ## Reproduce
 
 ```bash
-/home/penhfel/unsloth_uv/bin/python eval/eval_lora_stitch.py --run /mnt/f/distill_jev_runs/main \
-  --ext "/home/penhfel/github/Trained Models/My Dataset/gemma-4-e4b_claim" --weight 0.5 \
+./unsloth_uv/bin/python eval/eval_lora_stitch.py --run /mnt/f/distill_jev_runs/main \
+  --ext "./github/Trained Models/My Dataset/gemma-4-e4b_claim" --weight 0.5 \
   --train /mnt/f/distill_jev_runs/prep/costbr-30 --test /mnt/f/distill_jev_runs/prep/bench-costbr-test \
   --out /mnt/f/distill_jev_runs/stitch-w05
 ```

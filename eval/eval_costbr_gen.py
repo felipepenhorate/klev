@@ -7,8 +7,8 @@ several weights. Generation uses the external LoRA's own alpaca prompt (it was t
 plain completion format, not the chat template), greedy, max 3 new tokens; parsing is the
 `get_parsed_predictions` rule of `Tests/My Dataset/Compare Results - My Dataset.ipynb`.
 
-    /home/penhfel/unsloth_uv/bin/python eval/eval_costbr_gen.py \
-        --run /mnt/f/distill_jev_runs/main --ext "/home/penhfel/github/Trained Models/My Dataset/gemma-4-e4b_claim" \
+    ./unsloth_uv/bin/python eval/eval_costbr_gen.py \
+        --run /mnt/f/distill_jev_runs/main --ext "./github/Trained Models/My Dataset/gemma-4-e4b_claim" \
         --weights 1.0,0.5 --out /mnt/f/distill_jev_runs/costbr-compose
 """
 import argparse
@@ -49,7 +49,7 @@ def parse_args():
     ap.add_argument("--ext", default="", help="third-party LoRA dir trained on the base model")
     ap.add_argument("--weights", default="1.0", help="comma-separated ext weights (M5 weight is 1)")
     ap.add_argument("--conditions", default="", help="explicit conditions, e.g. base,default,ext,combo1.0")
-    ap.add_argument("--data", default="/home/penhfel/github/training-conversational-stance/Datasets/My Dataset/prompt_eval_my_dataset_claim.json")
+    ap.add_argument("--data", default="./github/training-conversational-stance/Datasets/My Dataset/prompt_eval_my_dataset_claim.json")
     ap.add_argument("--out", required=True)
     ap.add_argument("--batch", type=int, default=8)
     ap.add_argument("--limit", type=int, default=0)

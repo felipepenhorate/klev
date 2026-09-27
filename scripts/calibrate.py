@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """Fit the served temperature on a calibration read and report the dev rows served at it.
 
-    /home/penhfel/unsloth_uv/bin/python scripts/calibrate.py \
+    ./unsloth_uv/bin/python scripts/calibrate.py \
         --calibration /mnt/f/distill_jev_runs/main-cal/rows.json \
         --rows /mnt/f/distill_jev_runs/main-eval/rows.json --out /mnt/f/distill_jev_runs/main-eval \
         --write-run /mnt/f/distill_jev_runs/main

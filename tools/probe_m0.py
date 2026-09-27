@@ -11,7 +11,7 @@ Checks (each one wrapped, the probe reports all of them even if one fails):
   7. image forward through the processor: soft-token span, hidden states, mm_token_type_ids
   8. peak VRAM
 
-Run:  /home/penhfel/unsloth_uv/bin/python tools/probe_m0.py
+Run:  ./unsloth_uv/bin/python tools/probe_m0.py
 """
 import argparse
 import json
