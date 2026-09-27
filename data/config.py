@@ -10,9 +10,6 @@ tokens would transiently allocate ~6 GB more than the 4080 has.
 E2B keeps E4B's vocabulary layout exactly (262,144 rows, `<unused0>`..`<unused4>` still at
 ids 6..10), so the encoder, the pointer head and the embedding deltas are reused verbatim
 between the two runs -- only MODEL and the compute dtype differ.
-
-Unlike E2B, Qwen3.5 (branch qwen35-08b) has no `<unusedN>` slots and no per-layer embedding
-table, so it needs its own delimiters and a no-BOS path in encode_row.
 """
 import os
 from pathlib import Path
@@ -21,22 +18,23 @@ ROOT = Path(__file__).resolve().parent.parent
 EVALS = ROOT / "evals"
 RUNS = Path(os.environ.get("KLEV_RUNS", "/mnt/f/distill_jev_runs"))
 
-# Base for this branch: Gemma 4 E2B IT, QAT-trained for q4_0 and shipped unquantized
-# (Apache-2.0). The QAT weights are calibrated to survive 4-bit, so re-quantizing them with
-# bitsandbytes NF4 at load costs much less accuracy than it would on the E4B base -- that is
-# the point of the branch, and the reason this is not a pure size swap. It is still 5.1B
-# total / 2B activated (Gemma-3n style PLE), 10.2 GB in bf16, so `load_in_4bit=True` is
-# mandatory on any card under 12 GB.
+# Base for this branch: Qwen3.5 0.8B IT. Dense (no PLE table), 1024 hidden, 24 layers,
+# vocab 248,320, tied embeddings, no final_logit_softcapping -- so the KL's softcap branch
+# is simply skipped and `embed_tokens_per_layer` does not exist (delimiters.py already
+# guards for that). 0.89 GB in 4-bit, so it trains on the 8 GB RX 6600M, which the Gemma 4
+# arms cannot: Gemma 4's [262144, 8960] per-layer embedding is 4.70 GB of unquantizable
+# fp16 (see docs/m10-gemma4-e2b.md).
 #
-# It does NOT fit the 8 GB RX 6600M, and not because of the parameter count: Gemma 4's
-# per-layer (PLE) input embedding is [262144, 8960] = 4.70 GB of fp16, larger than every
-# other tensor combined, and bitsandbytes replaces nn.Linear only, so it is never quantized.
-# See docs/m10-gemma4-e2b.md.
-MODEL = os.environ.get("KLEV_MODEL", "unsloth/gemma-4-E2B-it-qat-q4_0-unquantized")
+# Qwen3.5 is in unsloth's FORCE_FLOAT32 list, so scripts/rocm_env.sh callers must set
+# UNSLOTH_FORCE_FLOAT32=1 (plain fp16 NaNs the grad_norm in the backward).
+MODEL = os.environ.get("KLEV_MODEL", "Qwen/Qwen3.5-0.8B")
 
-# E2B keeps E4B's vocabulary layout exactly, so `<unused0>`..`<unused4>` are still at ids
-# 6..10 and the encoder, the pointer head and the embedding deltas are reused verbatim.
-DELIMITERS = ["<unused0>", "<unused1>", "<unused2>", "<unused3>", "<unused4>"]
+# Qwen has no `<unusedN>` slots, so the delimiters are five of Qwen's own reserved tokens --
+# the `<|fim_*|>` family Kev uses for the same purpose (`data/config.py` has said so all
+# along: "it reuses Qwen's `<|fim_prefix|>`-style reserved tokens the same way"). They exist
+# in the vocabulary already, so `add_special_tokens` registers them without a resize and
+# only these 5 rows are trained. Ids 248060..248064; `<|file_sep|>` (248065) is left alone.
+DELIMITERS = ["<|fim_prefix|>", "<|fim_suffix|>", "<|fim_middle|>", "<|fim_pad|>", "<|repo_name|>"]
 STATE, QUESTION, OPTION, OPTION_END, DECIDE = DELIMITERS
 
 # training context (Kev's numbers: state 384, branch 1024, packed 2048; the row form uses
