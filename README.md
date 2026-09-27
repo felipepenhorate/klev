@@ -10,13 +10,38 @@ readout serving Jev's typed decision protocol.
 Working name during development was **M5**; every `main*` run, doc and benchmark label refers
 to this model.
 
+## Attribution — built on Kev
+
+klev is **built on top of [Kev](https://github.com/jaredpalmer/kev)** (Apache-2.0, Jared Palmer)
+and **reuses part of its code**, vendored rather than reimplemented so klev stays
+byte-compatible with the Kev family — same record format, same readout, same metrics, so
+Kev-4B remains a like-for-like baseline and any Kev artifact can be read by klev:
+
+| file | from Kev | what is reused |
+|---|---|---|
+| `model/head.py` | `kev/model.py` | `PointerHead` — the `q`/`k` dot-product readout over option boundary tokens (the garbage/rejection candidate is klev's addition) |
+| `data/format.py` | `kev/api.py`, `kev/data.py` | the TypeSafe record format, `render()`, and the internal record builder, plus a multimodal `state` extension |
+| `data/metrics.py` | `kev/metrics.py` | the scoring statistics (pure numpy, verbatim) |
+| `data/suites.py` | `kev/suite.py` | frozen suite manifests and `jaredpalmer/kev-suites` mirror semantics (sha256-checked) |
+| `data/encoding.py`, `data/config.py` | Kev's method | row-form encoding, delimiter-rewrite rule, and the training-context / `trainable_token_indices` recipe |
+
+Also inherited from Kev: the **decision-v7 data** (`jaredpalmer/kev-suites`, the exact
+partitions that trained Kev-0.8B/4B/9B's first stage) and the **calibration procedure**
+(`scripts/calibrate.py` implements `kev.calibrate`). Kev is Apache-2.0; every vendored file
+carries a header naming its Kev origin.
+
+What is klev's own: the Gemma 4 E4B base instead of Qwen, the QLoRA/Unsloth training stack
+instead of peft + Modal, the KL anchor, the `<unused0>..<unused4>` delimiter embedding deltas,
+the rejection channel, and the LoRA stitch. No Kev model weights are used — see `SPEC.md`
+§2.1 for the full reuse map.
+
 ## Model
 
 | | |
 |---|---|
 | Base | `unsloth/gemma-4-e4b-it-unsloth-bnb-4bit` (Gemma 4 E4B IT is Apache-2.0) |
 | Trainable | rank-16 LoRA (alpha 32) + 5 delimiter embedding rows + pointer head (~43.7M params) |
-| Readout | Kev's `PointerHead`: `q`/`k` dot-product over option boundary tokens, softmax over K options + a learned "garbage" candidate |
+| Readout | Kev's `PointerHead` (vendored, see above): `q`/`k` dot-product over option boundary tokens, softmax over K options + a learned "garbage" candidate |
 | Data | decision-v7, 15,576 rows, 2 epochs |
 | Objective | pointer CE over K+1 + **KL anchor 0.3 to the frozen base** on decision states |
 | Training | 8.5 h on one RTX 4080 16 GB, 4-bit, ~6.5 s/step |
