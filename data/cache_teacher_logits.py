@@ -31,6 +31,7 @@ from datasets import load_from_disk
 
 from data.config import DELIMITERS, MODEL
 from data.suites import write_json
+from model.load import compute_dtype
 
 
 def parse_args():
@@ -51,7 +52,7 @@ def main():
     from unsloth import FastModel
 
     model, processor = FastModel.from_pretrained(
-        model_name=a.model, max_seq_length=a.max_seq, dtype=torch.bfloat16,
+        model_name=a.model, max_seq_length=a.max_seq, dtype=compute_dtype(),
         load_in_4bit=True, use_gradient_checkpointing=False, trust_remote_code=False)
     tokenizer = getattr(processor, "tokenizer", processor)
     tokenizer.add_special_tokens({"additional_special_tokens": DELIMITERS})
@@ -90,7 +91,11 @@ def main():
             if i < start_row:
                 continue
             input_ids = torch.tensor([row["input_ids"][:a.max_seq]], device="cuda")
-            hidden = model(input_ids=input_ids, output_hidden_states=True, use_cache=False).hidden_states[-1][0]
+            # logits_to_keep=1: nothing here reads `out.logits` (the KL gathers its own
+            # logits in chunks off hidden_states[-1]), but without it transformers projects
+            # every position through lm_head -- 248,320 x seq_len of throwaway tensor.
+            hidden = model(input_ids=input_ids, output_hidden_states=True, use_cache=False,
+                           logits_to_keep=1).hidden_states[-1][0]
             positions = [t for t, m in enumerate(row["content_mask"][:a.max_seq]) if m]
             for c in range(0, len(positions), a.chunk):
                 index = torch.tensor(positions[c:c + a.chunk], device="cuda")
@@ -113,6 +118,7 @@ def main():
         partial.unlink()
     write_json(out.with_suffix(".json"), {"dataset": a.dataset, "rows": len(dataset), "positions": int(offsets[-1]),
                                           "top_k": a.top_k, "model": a.model, "teacher": "frozen base, no adapters",
+                                          "dtype": str(compute_dtype()),
                                           "softcap": softcap, "chunk": a.chunk, "max_seq": a.max_seq,
                                           "seconds": round(time.time() - start, 1)})
     print(f"[cache] {len(dataset)} rows, {offsets[-1]} positions, k={a.top_k} -> {out.with_suffix('.npz')} "

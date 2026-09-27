@@ -34,7 +34,7 @@ from transformers import Trainer, TrainerCallback, TrainingArguments
 from data.config import DEFAULTS, DELIMITERS, MODEL
 from model.delimiters import apply_delimiter_deltas
 from model.head import PointerHead
-from model.load import language_model
+from model.load import compute_dtype, language_model
 
 TARGET_MODULES = ["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"]
 
@@ -67,6 +67,9 @@ def parse_args():
     ap.add_argument("--resume", default="", help="checkpoint directory to resume from")
     ap.add_argument("--init-from", default="", help="checkpoint dir (adapter/ + head.pt) to warm start a delta run from")
     ap.add_argument("--warmup-steps", type=int, default=10)
+    ap.add_argument("--lr-scheduler-type", default="cosine",
+                    help="cosine reproduces the E4B main run, but on transformers 5.6.2 it "
+                         "holds the LR at 0 for every step when warmup_steps > 0; linear works")
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--gc-mode", choices=["unsloth", "none"], default="unsloth",
                     help="unsloth = its offloading checkpointer (enabled at load); none = no checkpointing")
@@ -182,8 +185,13 @@ class DistillTrainer(Trainer):
 
     def compute_loss(self, model, inputs, return_outputs=False, *args, **kwargs):
         input_ids, attention = inputs["input_ids"], inputs["attention_mask"]
-        out = model(input_ids=input_ids, attention_mask=attention, output_hidden_states=True, use_cache=False)
-        hidden = out.hidden_states[-1]                     # [B, L, d] bf16, with grad
+        # logits_to_keep=1: the loss reads only `hidden_states[-1]` and recomputes the
+        # vocab projection itself, chunked (content_kl). Letting transformers materialise
+        # `out.logits` would cost B x L x 248,320 floats per step for nothing -- 1.07 GB at
+        # L=2048, and the single largest allocation in the step.
+        out = model(input_ids=input_ids, attention_mask=attention, output_hidden_states=True,
+                    use_cache=False, logits_to_keep=1)
+        hidden = out.hidden_states[-1]                     # [B, L, d] fp16/bf16, with grad
 
         pointer_terms, garbage_mass, answerable_mass = [], [], []
         for i in range(hidden.shape[0]):
@@ -205,7 +213,8 @@ class DistillTrainer(Trainer):
             kl = self.content_kl_cached(model, hidden, inputs)
         else:
             with torch.no_grad(), model.disable_adapter():
-                teacher = model(input_ids=input_ids, attention_mask=attention, output_hidden_states=True, use_cache=False)
+                teacher = model(input_ids=input_ids, attention_mask=attention, output_hidden_states=True,
+                                use_cache=False, logits_to_keep=1)
             kl = self.content_kl(model, hidden, teacher.hidden_states[-1], inputs["content_mask"])
         loss = pointer + self.kl_weight * kl
         mean = lambda xs: sum(xs) / len(xs) if xs else 0.0
@@ -232,8 +241,9 @@ def build_model(a):
     from unsloth import FastModel
 
     gc = False if getattr(a, "no_gc", False) else getattr(a, "gc_mode", "unsloth")
+    dtype = compute_dtype()
     model, processor = FastModel.from_pretrained(
-        model_name=a.model, max_seq_length=a.max_seq_length, dtype=torch.bfloat16,
+        model_name=a.model, max_seq_length=a.max_seq_length, dtype=dtype,
         load_in_4bit=True, use_gradient_checkpointing=gc, trust_remote_code=False)
     tokenizer = getattr(processor, "tokenizer", processor)
     tokenizer.add_special_tokens({"additional_special_tokens": DELIMITERS})
@@ -272,6 +282,21 @@ def build_model(a):
     model.config.use_cache = False
     if hasattr(model.config, "text_config"):
         model.config.text_config.use_cache = False
+    # Every trainable parameter must be fp32 under fp16 AMP, or the GradScaler aborts at
+    # the first clip_grad_norm_ with "Attempting to unscale FP16 gradients." peft already
+    # upcasts LoRA via autocast_adapter_dtype and PointerHead is born fp32, but nothing
+    # guarantees it for future architectures, so fix it here rather than debug it later.
+    # Cheap: the trainable set is the LoRA (tens of M) plus 5 embedding rows.
+    # In place, not by rebinding the attribute: `deltas` (and any optimizer built earlier)
+    # holds references to these exact Parameter objects, and setattr would swap in new ones
+    # and leave those references stale -- head.pt would then save zeroed deltas.
+    upcast = [(n, q.dtype) for n, q in model.named_parameters() if q.requires_grad and q.dtype != torch.float32]
+    for _, q in model.named_parameters():
+        if q.requires_grad and q.dtype != torch.float32:
+            q.data = q.data.to(torch.float32)
+    if upcast:
+        print(f"[train] upcast {len(upcast)} trainable tensors to fp32 for the GradScaler: "
+              f"{', '.join(f'{n}({str(d).split(chr(46))[-1]})' for n, d in upcast[:6])}", flush=True)
     trainable = sum(p.numel() for p in model.parameters() if p.requires_grad)
     print(f"[train] trainable {trainable / 1e6:.1f}M (head {sum(p.numel() for p in head.parameters()) / 1e3:.1f}k, "
           f"deltas {sum(d.numel() for d in deltas.values()) / 1e3:.1f}k, garbage={head.garbage})", flush=True)
@@ -299,13 +324,16 @@ def main():
     print(f"[train] {len(dataset)} rows", flush=True)
 
     a.out_dir.mkdir(parents=True, exist_ok=True)
+    dtype = compute_dtype()
     args = TrainingArguments(
         output_dir=str(a.out_dir / "adapter"), per_device_train_batch_size=a.per_device_batch_size,
         gradient_accumulation_steps=a.grad_accum, max_steps=a.max_steps, learning_rate=a.lr,
         warmup_steps=a.warmup_steps, logging_steps=a.logging_steps,
-        save_strategy="steps" if a.save_steps else "no", save_steps=a.save_steps or 10**9, save_total_limit=2, bf16=True,
+        save_strategy="steps" if a.save_steps else "no", save_steps=a.save_steps or 10**9, save_total_limit=2,
+        bf16=dtype is torch.bfloat16, fp16=dtype is torch.float16,
         optim="adamw_8bit", weight_decay=0.0, report_to="none", remove_unused_columns=False,
-        dataloader_num_workers=0, seed=a.seed, gradient_checkpointing=False, lr_scheduler_type="cosine")
+        dataloader_num_workers=0, seed=a.seed, gradient_checkpointing=False,
+        lr_scheduler_type=a.lr_scheduler_type)
     trainer = DistillTrainer(model=model, args=args, train_dataset=dataset, data_collator=DistillCollator(),
                              processing_class=tokenizer,
                              callbacks=[HeadCheckpointCallback(head, deltas, {"model": a.model, "lora_r": a.lora_r,
@@ -326,7 +354,9 @@ def main():
                 "meta": {"model": a.model, "lora_r": a.lora_r, "lora_alpha": a.lora_alpha, "head_dim": a.head_dim,
                          "kl_weight": a.kl_weight, "teacher_temperature": a.teacher_temperature, "steps": a.max_steps}},
                a.out_dir / "head.pt")
-    (a.out_dir / "train_config.json").write_text(json.dumps(vars(a), indent=2, default=str), encoding="utf-8")
+    print(f"[train] compute dtype {dtype}", flush=True)
+    (a.out_dir / "train_config.json").write_text(
+        json.dumps({**vars(a), "dtype": str(dtype)}, indent=2, default=str), encoding="utf-8")
     (a.out_dir / "train_log.json").write_text(json.dumps(trainer.state.log_history, indent=2), encoding="utf-8")
     print(f"[train] done in {wall / 60:.1f} min -> {a.out_dir}", flush=True)
 
