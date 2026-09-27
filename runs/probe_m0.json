@@ -1,0 +1,183 @@
+{
+  "checks": {
+    "cuda": {
+      "ok": true,
+      "detail": "NVIDIA GeForce RTX 4080"
+    },
+    "load": {
+      "ok": true,
+      "detail": "Gemma4ForConditionalGeneration in 85.8s"
+    },
+    "mem_after_load": {
+      "ok": true,
+      "detail": {
+        "allocated_gb": 10.966,
+        "reserved_gb": 11.13,
+        "peak_gb": 10.966,
+        "free_gb": 4.591
+      }
+    },
+    "language_model_path": {
+      "ok": true,
+      "detail": "Gemma4TextModel"
+    },
+    "processor": {
+      "ok": true,
+      "detail": "Gemma4Processor"
+    },
+    "delimiters": {
+      "ok": true,
+      "detail": "registered 5, vocab unchanged at 262144, ids [6, 7, 8, 9, 10]"
+    },
+    "delimiter_deltas": {
+      "ok": true,
+      "detail": {
+        "embed_tokens": [
+          5,
+          2560
+        ],
+        "embed_tokens_per_layer": [
+          5,
+          10752
+        ]
+      }
+    },
+    "qlora": {
+      "ok": true,
+      "detail": "42.5M trainable"
+    },
+    "hidden_size": {
+      "ok": true,
+      "detail": 2560
+    },
+    "encode_delimiters": {
+      "ok": true,
+      "detail": {
+        "state": [
+          0
+        ],
+        "q": [
+          12
+        ],
+        "opt": [
+          19,
+          22
+        ],
+        "opt_end": [
+          21,
+          24
+        ],
+        "decide": [
+          25
+        ]
+      }
+    },
+    "text_hidden": {
+      "ok": true,
+      "detail": "hidden (26, 2560)"
+    },
+    "logits_to_keep": {
+      "ok": true,
+      "detail": "logits (1, 3, 262144)"
+    },
+    "head_step": {
+      "ok": true,
+      "detail": "loss 0.0757; head grads 4/4; lora grad tensors 260"
+    },
+    "disable_adapter": {
+      "ok": true,
+      "detail": "max |student - teacher| = 22.062500 (must be > 0 after a step)"
+    },
+    "image_processor_keys": {
+      "ok": true,
+      "detail": {
+        "input_ids": [
+          1,
+          280
+        ],
+        "attention_mask": [
+          1,
+          280
+        ],
+        "mm_token_type_ids": [
+          1,
+          280
+        ],
+        "pixel_values": [
+          1,
+          2520,
+          768
+        ],
+        "image_position_ids": [
+          1,
+          2520,
+          2
+        ]
+      }
+    },
+    "image_span": {
+      "ok": true,
+      "detail": "boi 255999 eoi 258882 soft tokens 256 span (1, 258) of 280"
+    },
+    "image_forward": {
+      "ok": true,
+      "detail": "hidden (280, 2560) logits (1, 280, 262144)"
+    },
+    "image_delimiters": {
+      "ok": true,
+      "detail": {
+        "state": [
+          0
+        ],
+        "q": [
+          267
+        ],
+        "opt": [
+          273,
+          276
+        ],
+        "opt_end": [
+          275,
+          278
+        ],
+        "decide": [
+          279
+        ]
+      }
+    },
+    "garbage_head": {
+      "ok": true,
+      "detail": {
+        "p_before_garbage": 0.0074,
+        "knowable_after": [
+          1.0,
+          0.0,
+          0.0
+        ],
+        "nonsense_after": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "grads": {
+          "g": 15.9883,
+          "g_bias": 0.4963,
+          "q.weight": 168964.7812,
+          "q.bias": 18.3839,
+          "k.weight": 145863.0156,
+          "k.bias": 15.9883
+        }
+      }
+    },
+    "peak_vram": {
+      "ok": true,
+      "detail": "12.35 GB allocated peak"
+    }
+  },
+  "peaks": {
+    "delimiters": 10.966,
+    "text_forward": 11.59,
+    "backward": 11.66,
+    "image_forward": 12.351
+  }
+}

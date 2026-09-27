@@ -1,0 +1,10 @@
+{
+  "long_pointer": {
+    "seconds": 7.218,
+    "peak_gb": 12.98,
+    "loss": 1.845
+  },
+  "long_full": {
+    "error": "CheckpointError: torch.utils.checkpoint: Recomputed values for the following tensors have different metadata than during the forward pass."
+  }
+}

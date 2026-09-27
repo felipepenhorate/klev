@@ -1,0 +1,26 @@
+{
+  "checks": {
+    "init_garbage_small": true,
+    "routing_works": true,
+    "accuracy_kept": true,
+    "gradients_flow": true,
+    "permutation_invariant": true
+  },
+  "results": {
+    "init": {
+      "p_garbage_mean": 0.004548635333776474,
+      "p_garbage_max": 0.00488769356161356
+    },
+    "final_loss": 0.0010045224335044622,
+    "p_garbage_answerable_mean": 6.484056314093323e-08,
+    "p_garbage_garbage_mean": 0.9953654408454895,
+    "answerable_accuracy": 1.0,
+    "garbage_detected": 1.0,
+    "distribution_sums": 1.0,
+    "grads_seen": {
+      "g": 0.0008445073617622256,
+      "g_bias": -0.0005915657966397703
+    },
+    "permutation_invariant": true
+  }
+}

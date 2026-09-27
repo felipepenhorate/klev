@@ -1,0 +1,12 @@
+{
+  "long_pointer": {
+    "seconds": 18.306,
+    "peak_gb": 18.93,
+    "loss": 1.845
+  },
+  "long_full": {
+    "seconds": 30.883,
+    "peak_gb": 20.03,
+    "loss": 2.4166
+  }
+}
