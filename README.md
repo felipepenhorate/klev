@@ -127,7 +127,7 @@ Artifacts (checkpoints, prepared datasets, benchmark reports) live outside the r
 ## Quick start
 
 ```bash
-# train (requires /home/penhfel/unsloth_uv and HF_HOME=/mnt/f/huggingface)
+# train
 python training/train_distill.py --dataset /mnt/f/distill_jev_runs/prep/dv7-full \
     --teacher-cache /mnt/f/distill_jev_runs/cache/dv7 --out /mnt/f/distill_jev_runs/main \
     --epochs 2 --lr 1e-4 --kl-weight 0.3 --lora-r 16 --lora-alpha 32
