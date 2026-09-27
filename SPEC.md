@@ -502,7 +502,7 @@ this scale.
 | Item | Value |
 |---|---|
 | GPU | RTX 4080 16 GB (CUDA 13, driver 591.86) |
-| Python env | `/home/penhfel/unsloth_uv` (3.13.11) |
+| Python env | `unsloth_uv` (3.13.11) |
 | unsloth / transformers / trl / peft / bnb / torch | 2026.9.7 / 5.5.0 / 0.24.0 / 0.20.0 / 0.50.1 / 2.11.0+cu130 |
 | Base checkpoint (cached) | `unsloth/gemma-4-e4b-it-unsloth-bnb-4bit` (HF_HOME=`/mnt/f/huggingface`) |
 | Record generator | Qwen3.5-9B UD-Q4_K_XL GGUF (6.1 GB) at `/mnt/f/GGUF/Qwen_3.5-9B/`, + `mmproj-BF16.gguf`, served by `~/llama.cpp/build/bin/llama-server` (build 10276, `qwen35` arch, `--jinja`, `-jf`) |
@@ -633,37 +633,37 @@ Commands (M0/M1 ran these; the M3+ blocks are sketches):
 
 ```bash
 # M0 probes (delimiters, text/image forwards, disable_adapter, pointer head, garbage)
-/home/penhfel/unsloth_uv/bin/python tools/probe_m0.py
-/home/penhfel/unsloth_uv/bin/python tools/probe_garbage.py
+unsloth_uv/bin/python tools/probe_m0.py
+unsloth_uv/bin/python tools/probe_garbage.py
 
 # M1: prep -> teacher cache -> train (cache is required under GC, see 5.5) -> dev read
-/home/penhfel/unsloth_uv/bin/python data/prep_dataset.py --suite evals/v7/decision-v7 --split train \
+unsloth_uv/bin/python data/prep_dataset.py --suite evals/v7/decision-v7 --split train \
   --out /mnt/f/distill_jev_runs/prep/dv7-smoke --limit 2000 --garbage-frac 0.1
-/home/penhfel/unsloth_uv/bin/python data/cache_teacher_logits.py \
+unsloth_uv/bin/python data/cache_teacher_logits.py \
   --dataset /mnt/f/distill_jev_runs/prep/dv7-smoke --out /mnt/f/distill_jev_runs/cache/dv7-smoke --top-k 32
-/home/penhfel/unsloth_uv/bin/python training/train_distill.py \
+unsloth_uv/bin/python training/train_distill.py \
   --dataset /mnt/f/distill_jev_runs/prep/dv7-smoke --teacher-cache /mnt/f/distill_jev_runs/cache/dv7-smoke \
   --max-steps 500 --per-device-batch-size 1 --grad-accum 8 --lr 1e-4 --kl-weight 0.3 \
   --out-dir /mnt/f/distill_jev_runs/smoke
-/home/penhfel/unsloth_uv/bin/python data/prep_dataset.py --suite evals/v7/decision-v7 --split development \
+unsloth_uv/bin/python data/prep_dataset.py --suite evals/v7/decision-v7 --split development \
   --out /mnt/f/distill_jev_runs/prep/dv7-dev --garbage-frac 0 --no-shuffle
-/home/penhfel/unsloth_uv/bin/python eval/eval_decisions.py --run /mnt/f/distill_jev_runs/smoke \
+unsloth_uv/bin/python eval/eval_decisions.py --run /mnt/f/distill_jev_runs/smoke \
   --dataset /mnt/f/distill_jev_runs/prep/dv7-dev --out /mnt/f/distill_jev_runs/smoke-eval
 
 # M3 Qwen3.5-9B synthetic (no quantization: the GGUF is already UD-Q4_K_XL)
-/home/penhfel/llama.cpp/build/bin/llama-server \
+llama.cpp/build/bin/llama-server \
   -m /mnt/f/GGUF/Qwen_3.5-9B/Qwen3.5-9B-UD-Q4_K_XL.gguf \
   --host 127.0.0.1 --port 8083 -c 32768 -np 4 --jinja
 # optional vision wording (test in M3): append
 #   --mmproj /mnt/f/GGUF/Qwen_3.5-9B/mmproj-BF16.gguf
-/home/penhfel/unsloth_uv/bin/python data/synth/generate_records.py \
+python data/synth/generate_records.py \
   --api-base http://127.0.0.1:8083/v1 --n 2000 \
   --schema data/synth/schema.json --out data/synth/qwen35_9b_v1.jsonl
 
 # M4 cache + M5 full run
-/home/penhfel/unsloth_uv/bin/python data/cache_teacher_logits.py \
+python data/cache_teacher_logits.py \
   --dataset /mnt/f/distill_jev_runs/prep/main --out /mnt/f/distill_jev_runs/cache/main --top-k 32
-/home/penhfel/unsloth_uv/bin/python training/train_distill.py \
+python training/train_distill.py \
   --dataset /mnt/f/distill_jev_runs/prep/main --teacher-cache /mnt/f/distill_jev_runs/cache/main \
   --max-steps 16000 --per-device-batch-size 1 --grad-accum 16 --max-seq-length 2048 \
   --lr 1e-4 --embedding-lr 2e-4 --kl-weight 0.3 --top-k 32 \
