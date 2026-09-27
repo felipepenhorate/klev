@@ -771,8 +771,8 @@ fitted on the model's own development rows; report negative results too.
    is synthetic by design and the frozen generators include held-out families.
 7. **GGUF cannot carry the pointer head**: serving stays torch; GGUF is only a
    qualitative generation check. Don't promise a llama.cpp decision endpoint.
-8. **Licences**: Gemma terms for the base and derivatives; each dataset's licence;
-   Qwen3.5-9B output provenance. No publishing without an explicit OK.
+8. **Licences**: Apache-2.0 for the base (Gemma 4 E4B IT) and derivatives; each dataset's
+   licence (the released weights and model card are at `lumierenoir/klev-e4b`).
 9. **Augmentation/cache coupling**: KL must stay on augmentation-invariant
    positions or the cache is wrong. M4's equivalence test is the guard, and the
    encoder pins `C` to state + instruction.

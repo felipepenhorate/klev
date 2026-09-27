@@ -14,7 +14,7 @@ to this model.
 
 | | |
 |---|---|
-| Base | `unsloth/gemma-4-e4b-it-unsloth-bnb-4bit` (Gemma Terms of Use — not Apache-2.0) |
+| Base | `unsloth/gemma-4-e4b-it-unsloth-bnb-4bit` (Gemma 4 E4B IT is Apache-2.0) |
 | Trainable | rank-16 LoRA (alpha 32) + 5 delimiter embedding rows + pointer head (~43.7M params) |
 | Readout | Kev's `PointerHead`: `q`/`k` dot-product over option boundary tokens, softmax over K options + a learned "garbage" candidate |
 | Data | decision-v7, 15,576 rows, 2 epochs |
