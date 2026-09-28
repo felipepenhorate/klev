@@ -29,7 +29,7 @@ from data.config import DELIMITERS, MODEL
 from data.suites import write_json
 from model.delimiters import apply_delimiter_deltas
 from model.head import PointerHead
-from model.load import language_model
+from model.load import compute_dtype, language_model
 
 
 def parse_args():
@@ -46,11 +46,14 @@ def parse_args():
 
 
 def load_checkpoint(run: Path, base: str, device="cuda", extra: str = "", extra_weight: float = 1.0):
+    """The base dtype must match the one the checkpoint was trained in: the readout is a
+    dot product on raw hidden states, so a bf16/fp16 split between train and eval shows up
+    directly as a shift in the option logits."""
     from peft import PeftModel
     from unsloth import FastModel
 
     model, processor = FastModel.from_pretrained(
-        model_name=base, max_seq_length=2048, dtype=torch.bfloat16, load_in_4bit=True,
+        model_name=base, max_seq_length=2048, dtype=compute_dtype(), load_in_4bit=True,
         use_gradient_checkpointing=False, trust_remote_code=False)
     tokenizer = getattr(processor, "tokenizer", processor)
     tokenizer.add_special_tokens({"additional_special_tokens": DELIMITERS})
@@ -92,7 +95,11 @@ def main():
     with torch.no_grad():
         for i, row in enumerate(dataset):
             ids = torch.tensor([row["input_ids"]], device=device)
-            hidden = model(input_ids=ids, output_hidden_states=True, use_cache=False).hidden_states[-1][0]
+            # logits_to_keep=1: the readout works entirely off hidden_states[-1], but without
+            # it transformers projects every position through lm_head -- 248,320 x seq_len of
+            # throwaway tensor per row.
+            hidden = model(input_ids=ids, output_hidden_states=True, use_cache=False,
+                           logits_to_keep=1).hidden_states[-1][0]
             option_hidden = hidden[torch.tensor(row["opt_pos"], device=device)]
             decide = hidden[row["decide_pos"]]
             logits = model.head(decide.float(), option_hidden.float())

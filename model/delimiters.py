@@ -20,8 +20,12 @@ class EmbeddingDelta(nn.Module):
         self.base = base
         self.first = int(min(indices))
         self.count = int(max(indices)) - self.first + 1
+        # float32, not base.weight.dtype: the delta is a *trainable* parameter, and under
+        # fp16 AMP the GradScaler refuses fp16 grads ("Attempting to unscale FP16
+        # gradients."). It is only 5 rows, so fp32 costs nothing, and forward() casts back
+        # to the embedding dtype anyway. (bf16 training never hit this: no scaler.)
         self.delta = nn.Parameter(torch.zeros(self.count, base.embedding_dim,
-                                              dtype=base.weight.dtype, device=base.weight.device))
+                                              dtype=torch.float32, device=base.weight.device))
 
     @property
     def weight(self):

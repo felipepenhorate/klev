@@ -14,7 +14,6 @@ they are exactly the prefix-teacher-cache key (3.4).
 from .config import DECIDE, OPTION, OPTION_END, QUESTION, STATE
 from .format import state_text
 
-BOS = "<bos>"
 _WANTED = ("state", "q", "opt", "opt_end", "decide")
 _TOKENS = (STATE, QUESTION, OPTION, OPTION_END, DECIDE)
 
@@ -59,7 +58,12 @@ def encode_row(tokenizer, rec, question, max_state: int = 384, max_branch: int =
     mask. The caller computes them while expanding `<|image|>` placeholders (M2)."""
     text = build_row_text(state_text(rec), question["instr"], question["options"])
     body = tokenizer(text, add_special_tokens=False)["input_ids"]
-    ids = [tokenizer.convert_tokens_to_ids(BOS)] + body
+    # Gemma has an explicit `<bos>`; Qwen does not (bos_token_id is None), and
+    # convert_tokens_to_ids("<bos>") returns None there rather than raising. Prepend the
+    # tokenizer's own BOS only when it has one, and let the state-length arithmetic below
+    # account for the difference.
+    bos = tokenizer.bos_token_id
+    ids = ([bos] + body) if bos is not None else list(body)
     pos = delimiter_positions(tokenizer, ids)
     n_options = len(question["options"])
     if not (len(pos["state"]) == 1 and len(pos["q"]) == 1 and len(pos["decide"]) == 1
@@ -68,7 +72,9 @@ def encode_row(tokenizer, rec, question, max_state: int = 384, max_branch: int =
     if pos["decide"][0] != len(ids) - 1:
         raise AssertionError("the decide delimiter must be the last token of the row")
     first_opt = pos["opt"][0]
-    state_tokens = pos["q"][0] - 2                      # <bos> <unused0> state... <unused1>
+    # <bos> <STATE> state... <QUESTION>, so the state text is whatever sits between the two
+    # delimiters, minus the leading BOS when the tokenizer has one.
+    state_tokens = pos["q"][0] - 2 - (0 if bos is None else 1)
     branch_tokens = len(ids) - pos["q"][0]
     if strict and state_tokens > max_state:
         raise ContextOverflow(f"state too long: {state_tokens} > {max_state}")
