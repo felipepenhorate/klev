@@ -17,9 +17,14 @@ python training/train_distill.py --preset e4b --model some/other-repo ...   # mo
 
 | preset | model | delimiters | status |
 |---|---|---|---|
-| `qwen35-08b` (default) | `Qwen/Qwen3.5-0.8B` | `<|fim_prefix|>`, `<|fim_suffix|>`, `<|fim_middle|>`, `<|fim_pad|>`, `<|repo_name|>` (248060..248064) | trained; `docs/m11-qwen35-08b.md` |
-| `e4b` | `unsloth/gemma-4-e4b-it-unsloth-bnb-4bit` | `<unused0>`..`<unused4>` (6..10) | the original reference run, `docs/m5-text-run.md` |
-| `e2b-qat` | `unsloth/gemma-4-E2B-it-qat-q4_0-unquantized` | `<unused0>`..`<unused4>` (6..10) | **not trainable below ~12 GB VRAM**, `docs/m10-gemma4-e2b.md` |
+| `e4b` **(default)** | `unsloth/gemma-4-e4b-it-unsloth-bnb-4bit` | `<unused0>`..`<unused4>` (6..10) | the reference recipe and the first trained. 0.860 dev / 0.751 transfer, 8.5 h on a 4080. `docs/m5-text-run.md` |
+| `qwen35-08b` | `Qwen/Qwen3.5-0.8B` | `<|fim_prefix|>`, `<|fim_suffix|>`, `<|fim_middle|>`, `<|fim_pad|>`, `<|repo_name|>` (248060..248064) | the alternative arm, trained and measured in `docs/m11-qwen35-08b.md`: 0.812 dev / 0.664 transfer in 192 min, and it fits a card the Gemma 4 bases cannot |
+| `e2b-qat` | `unsloth/gemma-4-E2B-it-qat-q4_0-unquantized` | `<unused0>`..`<unused4>` (6..10) | **not trained**: not trainable below ~12 GB VRAM, `docs/m10-gemma4-e2b.md` |
+
+The default stays `e4b`: it is the reference recipe, the one the benchmark table in
+`README.md` and the comparisons in `docs/m5` and `docs/m7` describe, and the first one trained.
+`qwen35-08b` is the alternative — the arm that also trained here, on a card too small for the
+Gemma 4 bases, and the subject of the Qwen-vs-Kev comparison in `docs/m11`.
 
 `--preset` sets the model *and* the delimiters together, because the two must not drift: the
 encoder builds each row by concatenating delimiter token strings, and the tokenizer has to

@@ -12,10 +12,11 @@ source scripts/rocm_env.sh
 # qwen3_5 is in unsloth's FORCE_FLOAT32 list: plain fp16 NaNs the grad_norm in the backward.
 export UNSLOTH_FORCE_FLOAT32=1
 
-# Which base this run trains. data/config.py holds the presets: qwen35-08b (default, the arm
-# that ran here), e4b (the original reference recipe, 16 GB class card), e2b-qat (blocked
-# below 12 GB VRAM -- docs/m10-gemma4-e2b.md). --preset sets the model AND its delimiters
-# together, so the two cannot drift apart.
+# Which base this run trains. The repo default is e4b (the reference recipe, 16 GB class
+# card); this script exists for the Qwen arm, which trained on the 8 GB RX 6600M the Gemma 4
+# bases cannot fit, so it defaults to qwen35-08b rather than following that default.
+# --preset sets the model AND its delimiters together, so the two cannot drift apart.
+# The third preset, e2b-qat, is blocked below ~12 GB VRAM -- docs/m10-gemma4-e2b.md.
 PRESET="${PRESET:-qwen35-08b}"
 
 KLEV_RUNS="${KLEV_RUNS:-/home/feipe/Documentos/Projects/klev-runs}"

@@ -57,14 +57,16 @@ PRESETS = {
     "qwen35-08b": {
         "model": "Qwen/Qwen3.5-0.8B",
         "delimiters": QWEN_DELIMITERS,
-        "note": "dense, 1024 hidden, 24 layers, vocab 248,320, tied embeddings, no PLE table. "
-        "Fits the 8 GB RX 6600M; the Gemma 4 arms do not.",
+        "note": "the alternative arm, trained and measured in docs/m11-qwen35-08b.md. Dense, "
+        "1024 hidden, 24 layers, vocab 248,320, tied embeddings, no PLE table, so it fits the "
+        "8 GB RX 6600M that the Gemma 4 bases cannot. Ties kev-0.8B in distribution (0.812) and "
+        "beats it out of it (0.664 vs 0.613).",
     },
     "e4b": {
         "model": "unsloth/gemma-4-e4b-it-unsloth-bnb-4bit",
         "delimiters": GEMMA_DELIMITERS,
-        "note": "the original reference run, docs/m5-text-run.md. Gemma 4, hidden 2560. "
-        "Needs a 16 GB class card.",
+        "note": "the reference recipe, and the default. docs/m5-text-run.md. Gemma 4, hidden "
+        "2560, 0.860 dev / 0.751 transfer. Needs a 16 GB class card.",
     },
     "e2b-qat": {
         "model": "unsloth/gemma-4-E2B-it-qat-q4_0-unquantized",
@@ -75,9 +77,11 @@ PRESETS = {
     },
 }
 
-# Default is qwen35-08b because it is the arm that has actually been trained and measured
-# (docs/m11-qwen35-08b.md). Switch with --preset e4b to reproduce the reference recipe.
-DEFAULT_PRESET = os.environ.get("KLEV_PRESET", "qwen35-08b")
+# The default is e4b: it is the reference recipe -- the one the benchmark table in README.md
+# and the comparisons in docs/m5 and m7 describe, and the first one trained. qwen35-08b is the
+# alternative arm (docs/m11-qwen35-08b.md): also trained, on a card too small for the Gemma 4
+# bases. Reach it with --preset qwen35-08b.
+DEFAULT_PRESET = os.environ.get("KLEV_PRESET", "e4b")
 if DEFAULT_PRESET not in PRESETS:
     raise SystemExit(
         f"unknown KLEV_PRESET {DEFAULT_PRESET!r}; expected one of {sorted(PRESETS)}"
