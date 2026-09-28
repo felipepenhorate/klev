@@ -52,3 +52,29 @@ that LoRA's knowledge with ~30 examples** — 0.405 → 0.521 (Gemma/CoSt-BR) an
 
 Apache-2.0 · https://huggingface.co/lumierenoir/klev-e4b ·
 https://huggingface.co/lumierenoir/klev-0.8b · https://github.com/felipepenhorate/klev
+
+---
+
+## Short version, lists (the one to post if the long draft is too much)
+
+**klev — decision models that can borrow a LoRA's knowledge**
+
+Open-weights decision models: typed questions in, calibrated probabilities plus an explicit
+"I don't know" out. Apache-2.0.
+
+- **klev-e4b** (Gemma 4 E4B, 4-bit) — the better Portuguese model: 0.466 vs 0.328 on the same
+  pt-BR rows
+- **klev-0.8b** (Qwen3.5-0.8B) — 0.89 GB of weights, a full fine-tune in 192 min on an 8 GB card;
+  ties kev-0.8B in-distribution (0.812) and beats it by 5.1 pts out of it (0.664 vs 0.613)
+- **The gimmick** — a KL anchor to its base means any LoRA trained by someone else on that same
+  base can be loaded next to it without breaking its decisions (dev 0.860 → 0.855), and that
+  LoRA's knowledge can be imported with ~30 labelled rows and two scalars:
+  - Gemma 4 / CoSt-BR: 0.405 → **0.521**
+  - Qwen 0.8B / tweet_eval: 0.605 → **0.715**
+  - Qwen 0.8B / RumourEval: 0.362 → **0.479**
+  - +251 ms per question, no retraining
+
+https://huggingface.co/lumierenoir/klev-e4b · https://huggingface.co/lumierenoir/klev-0.8b ·
+https://github.com/felipepenhorate/klev
+
+#MachineLearning #LLM #OpenSource #LoRA
