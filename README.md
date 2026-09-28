@@ -133,10 +133,67 @@ collides with it or has to be absorbed with a full delta run; with the anchor, n
 capabilities are a 30-example stitching job. The price of the anchor is the same as always —
 knowledge/stance gaps vs heavier fine-tunes (see the tables above).
 
+## Using it
+
+A decision model is small and stateless, so the normal way to use one is **in-process** — load
+it once, call it as often as you like. No server, no port, no daemon. Full detail and the
+validation log in [`docs/m14-usage.md`](docs/m14-usage.md).
+
+```python
+from model.infer import load_klev, answer
+
+model, tokenizer, head = load_klev("lumierenoir/klev-0.8b")   # or a local dir
+
+result = answer(model, tokenizer, head, {
+    "state": "My card was declined twice at a supermarket and the ATM refused it too.",
+    "questions": {
+        "is_card": {"type": "noul", "instructions": "Is the card being declined?",
+                    "criteria": {"false": "no", "true": "yes"}},
+        "action":  {"type": "choice", "instructions": "What should the agent do first?",
+                    "criteria": {"usage": "ask how the card was used",
+                                 "atm":   "raise an ATM fault",
+                                 "fraud": "run a fraud check"}},
+    }})
+result["answers"]["action"]["choice"]   # -> 'atm'
+result["answers"]["action"]["none"]     # -> 0.196, the rejection channel
+```
+
+```bash
+# same thing from a shell, with a plain-language readback
+python examples/system_one.py --ckpt lumierenoir/klev-0.8b
+python examples/system_one.py --ckpt lumierenoir/klev-0.8b --request my_request.json
+```
+
+`temperature` defaults to **1.0, the raw readout** — what the benchmark tables score. Serve at
+the fitted value (**2.2974** for the IT arm, **2.2449** for `base/`) to get the calibrated
+numbers in the model card; `head.pt` stores 1.0 because it is written during training.
+
+### When you do want HTTP
+
+Several processes sharing one warm copy of the weights, or a caller that isn't Python.
+
+```bash
+python serve/server.py --ckpt lumierenoir/klev-0.8b --port 8090 --temperature 2.2974
+curl -s localhost:8090/v1/systemone -H 'content-type: application/json' -d @request.json
+```
+
+`POST /v1/systemone`, `GET /v1/models`, `GET /health` — the same routes and response shapes as
+`kev`'s own server, so `eval/eval_systemone_http.py` scores it unmodified. Stdlib
+`http.server`, so there is no fastapi/uvicorn to install. One decision per request under a lock.
+
 ## Layout
 
 ```
-model/       pointer head, delimiter embedding deltas, loading helpers
+model/       pointer head, delimiter embedding deltas, loading helpers, model/infer.py
+data/        encoding, formatting, suites, dataset builders, teacher cache
+training/    DistillTrainer (pointer CE + cached-teacher KL), build_model, train_ext_lora
+eval/        decision/chat/drift/system-one evals, stitch experiment, demo notebook
+examples/    system_one.py -- inline decisions, no server
+serve/       server.py -- optional TypeSafe-compatible HTTP endpoint
+scripts/     calibration, ROCm environment, pipeline runners
+docs/        SPEC.md and milestone reports M5-M14
+evals/       decision-v7 suite (train/dev/calibration)
+runs/        small local runs
 data/        encoding, formatting, suites, dataset builders, teacher cache
 training/    DistillTrainer (pointer CE + cached-teacher KL), build_model
 eval/        decision/chat/drift/system-one evals, stitch experiment, demo notebook
@@ -176,3 +233,8 @@ python eval/eval_lora_stitch.py --run /mnt/f/distill_jev_runs/main \
 - `docs/m7-external-comparison.md` — klev vs Kev-4B vs Winnow-E4B
 - `docs/m8-multilingual.md` — multilingual delta and OOD suite
 - `docs/m9-lora-stitch.md` — few-shot stitch, steering vs gated fusion
+- `docs/m10-gemma4-e2b.md` — why the Gemma 4 E2B arm does not fit 8 GB
+- `docs/m11-qwen35-08b.md` — the Qwen3.5-0.8B port and the ROCm environment
+- `docs/m12-presets.md` — the base model as a preset (`--preset e4b` / `qwen35-08b` / …)
+- `docs/m13-qwen35-08b-base.md` — base-matching the klev/kev comparison
+- **`docs/m14-usage.md` — using a model: inline, and over HTTP (with the validation log)**

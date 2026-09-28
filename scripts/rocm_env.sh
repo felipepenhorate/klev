@@ -25,9 +25,15 @@ export CUDA_VISIBLE_DEVICES=0
 #   1 abstract  x 30 words   p50 144  p90 157  p100 177   trains
 #
 # The RumourEval adapter, which trains here, tops out at p100 195. So: keep the whole tokenized
-# row under ~195 tokens. Nothing else moves it -- KLEV_DTYPE=fp16 does not, dropping
-# UNSLOTH_FORCE_FLOAT32 does not, and clearing ~/.triton/cache does not help (a from-empty
-# cache trains the short case in 119 s). Do not waste time re-testing those.
+# row under ~195 tokens when TRAINING on this card. Nothing else moves it -- KLEV_DTYPE=fp16
+# does not, dropping UNSLOTH_FORCE_FLOAT32 does not, and clearing ~/.triton/cache does not help
+# (a from-empty cache trains the short case in 119 s). Do not waste time re-testing those.
+#
+# This is a *training* ceiling only. Inference is unaffected: verified by serving a 703-token
+# decision-v7 development row through serve/server.py -- HTTP 200, correct answer, process
+# healthy afterwards -- and by scoring 120 such rows through eval/eval_systemone_http.py with
+# zero failures. So do not cap the server or the example at 195 on this card; the decision-v7
+# rows run to p100 ~742 and are served fine.
 #
 # Cost of the ceiling: it is a real constraint on what task this card can host. PubMedQA runs
 # only with the evidence cut to 30 words of one abstract, and at that compression the adapter
