@@ -62,6 +62,17 @@ PRESETS = {
         "8 GB RX 6600M that the Gemma 4 bases cannot. Ties kev-0.8B in distribution (0.812) and "
         "beats it out of it (0.664 vs 0.613).",
     },
+    "qwen35-08b-base": {
+        "model": "Qwen/Qwen3.5-0.8B-Base",
+        "delimiters": QWEN_DELIMITERS,
+        "note": "same recipe as qwen35-08b but on the -Base checkpoint, which is what kev-0.8B "
+                "uses. Exists so the stitch comparison is base-matched: the base determines how "
+        "strong an external task LoRA can be (probe 0.715 on IT vs 0.660 on -Base), and the "
+        "stitch can only import what the adapter has, so an IT-vs-Base comparison of the "
+        "stitch is confounded. Same delimiters -- the -Base tokenizer resolves them to the "
+        "same ids 248060..248064 -- but it needs its OWN teacher cache, since the KL anchor is "
+        "computed from the frozen base's own logits.",
+    },
     "e4b": {
         "model": "unsloth/gemma-4-e4b-it-unsloth-bnb-4bit",
         "delimiters": GEMMA_DELIMITERS,
