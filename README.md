@@ -7,6 +7,10 @@ runs 4-bit on a single 16 GB GPU and serves the Jev-style decision protocol
 (`POST /v1/systemone` shape). The name comes from the KV + Jev lineage: a Kev-lineage pointer
 readout serving Jev's typed decision protocol.
 
+It was **built with [Unsloth](https://github.com/unslothai/unsloth)** — `FastModel` for the
+4-bit QLoRA run, Unsloth's gradient checkpointing and patching throughout training, teacher
+caching, evals and adapter composition. See [Built with Unsloth](#built-with-unsloth).
+
 Working name during development was **M5**; every `main*` run, doc and benchmark label refers
 to this model.
 
@@ -30,16 +34,36 @@ partitions that trained Kev-0.8B/4B/9B's first stage) and the **calibration proc
 (`scripts/calibrate.py` implements `kev.calibrate`). Kev is Apache-2.0; every vendored file
 carries a header naming its Kev origin.
 
-What is klev's own: the Gemma 4 E4B base instead of Qwen, the QLoRA/Unsloth training stack
+What is klev's own: the Gemma 4 E4B base instead of Qwen, the Unsloth QLoRA training stack
 instead of peft + Modal, the KL anchor, the `<unused0>..<unused4>` delimiter embedding deltas,
 the rejection channel, and the LoRA stitch. No Kev model weights are used — see `SPEC.md`
 §2.1 for the full reuse map.
+
+## Built with Unsloth
+
+klev was **built using [Unsloth](https://github.com/unslothai/unsloth)**, which is what makes
+the whole recipe fit one consumer GPU: the 4-bit QLoRA fine-tune of a 4B base, the delimiter
+embedding deltas, the pointer head and the teacher-KL cache all run through Unsloth's patched
+Gemma 4 stack.
+
+| stage | Unsloth usage |
+|---|---|
+| base load | `unsloth.FastModel.from_pretrained(..., load_in_4bit=True)` on `unsloth/gemma-4-e4b-it-unsloth-bnb-4bit` |
+| fine-tune | `FastModel.get_peft_model` for the rank-16 LoRA + `use_gradient_checkpointing="unsloth"`, driven by `training/DistillTrainer` (a `transformers.Trainer` subclass) |
+| trainable tokens | delimiter rows via peft `trainable_token_indices` (Unsloth's Gemma 4 embedding path) |
+| teacher KL | cached base logits, read through Unsloth's patched hidden-state/logits access |
+| inference / evals | `FastModel` for every decision, chat, drift and stitch eval |
+| adapter composition | `tools/merge_adapters.py` (Unsloth-loaded PeftModel) for second-adapter experiments |
+
+Unsloth must be imported **before** `transformers` / `peft` / `trl` (every entry point does
+`import unsloth  # noqa: F401` first) because it patches them at import time.
 
 ## Model
 
 | | |
 |---|---|
 | Base | `unsloth/gemma-4-e4b-it-unsloth-bnb-4bit` (Gemma 4 E4B IT is Apache-2.0) |
+| Stack | **Unsloth** 2026.9.7 (`FastModel`, `load_in_4bit=True`, `use_gradient_checkpointing="unsloth"`), 4-bit NF4 QLoRA, bf16 compute |
 | Trainable | rank-16 LoRA (alpha 32) + 5 delimiter embedding rows + pointer head (~43.7M params) |
 | Readout | Kev's `PointerHead` (vendored, see above): `q`/`k` dot-product over option boundary tokens, softmax over K options + a learned "garbage" candidate |
 | Data | decision-v7, 15,576 rows, 2 epochs |
