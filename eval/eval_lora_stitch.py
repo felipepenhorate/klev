@@ -32,7 +32,7 @@ from data.config import DELIMITERS, MODEL
 from data.suites import write_json
 from model.delimiters import apply_delimiter_deltas
 from model.head import PointerHead
-from model.load import language_model
+from model.load import compute_dtype, language_model
 
 ALPACA = """Below is an instruction that describes a task, paired with an input that provides further context. Write a response that appropriately completes the request.
 
@@ -45,8 +45,6 @@ ALPACA = """Below is an instruction that describes a task, paired with an input 
 ### Response:
 {}"""
 
-TRAIN_PROMPTS = "./github/training-conversational-stance/Datasets/My Dataset/to_train_prompts_my_dataset_claim.json"
-EVAL_PROMPTS = "./github/training-conversational-stance/Datasets/My Dataset/prompt_eval_my_dataset_claim.json"
 
 
 def parse_args():
@@ -58,6 +56,9 @@ def parse_args():
     ap.add_argument("--train", required=True)
     ap.add_argument("--test", required=True)
     ap.add_argument("--out", required=True)
+    ap.add_argument("--train-prompts", required=True,
+                    help='JSON: conv_key -> {"prompt": ...} for --train (the alpaca Instruction slot)')
+    ap.add_argument("--test-prompts", required=True, help="same, for --test")
     ap.add_argument("--alpha-max", type=float, default=6.0)
     ap.add_argument("--alpha-step", type=float, default=0.25)
     return ap.parse_args()
@@ -68,7 +69,7 @@ def load_model(a):
     from unsloth import FastModel
 
     model, processor = FastModel.from_pretrained(
-        model_name=a.model, max_seq_length=4096, dtype=torch.bfloat16, load_in_4bit=True,
+        model_name=a.model, max_seq_length=4096, dtype=compute_dtype(), load_in_4bit=True,
         use_gradient_checkpointing=False, trust_remote_code=False)
     tokenizer = getattr(processor, "tokenizer", processor)
     tokenizer.add_special_tokens({"additional_special_tokens": DELIMITERS})
@@ -100,7 +101,8 @@ def sys_features(model, dataset, device):
     h_sys, h_opts, owner, ys = [], [], [], []
     for i, row in enumerate(dataset):
         ids = torch.tensor([row["input_ids"]], device=device)
-        hidden = model(input_ids=ids, output_hidden_states=True, use_cache=False).hidden_states[-1][0]
+        hidden = model(input_ids=ids, output_hidden_states=True, use_cache=False,
+                       logits_to_keep=1).hidden_states[-1][0]
         h_sys.append(hidden[row["decide_pos"]].float().cpu())
         for j, p in enumerate(row["opt_pos"]):
             h_opts.append(hidden[p].float().cpu())
@@ -116,7 +118,8 @@ def alpaca_features(model, tokenizer, texts, device):
     out = []
     for i, text in enumerate(texts):
         ids = tokenizer(text, return_tensors="pt", add_special_tokens=True)["input_ids"].to(device)
-        hidden = model(input_ids=ids, output_hidden_states=True, use_cache=False).hidden_states[-1][0]
+        hidden = model(input_ids=ids, output_hidden_states=True, use_cache=False,
+                       logits_to_keep=1).hidden_states[-1][0]
         out.append(hidden[-1].float().cpu())
         if (i + 1) % 200 == 0:
             print(f"[feat] alpaca {i + 1}/{len(texts)}", flush=True)
@@ -142,10 +145,40 @@ def head_option_logits(head, h_decide, h_opts, owner):
         return head.many(h_decide.to(dev), h_opts.to(dev), owner.to(dev)).float().cpu()
 
 
-def ncm(h_train, y_train, h_test, n_classes=5):
+def ncm(h_train, y_train, h_test, n_classes):
     means = torch.stack([h_train[y_train == c].mean(0) for c in range(n_classes)])
     dist = torch.cdist(h_test, means)
     return dist, means
+
+
+def check_label_is_class(*datasets):
+    """Fail loudly if the option index is not a stable class identity.
+
+    The NCM probes cluster on `row["label"]`, which is the *option index*. If the rows were
+    prepped without --no-shuffle then data/prep_dataset.py shuffles the criteria per row, so the
+    same class lands on a different index each time and every "class mean" is a mixture of all
+    the classes. That does not look like a failure: on RumourEval it gave probe accuracy 0.068,
+    i.e. far *below* the 0.25 chance rate, and was easy to read as "this LoRA has no linearly
+    decodable signal" when the real problem was the prep.
+
+    So require class -> index to be a bijection, which is what a fixed-label task needs.
+    """
+    seen = {}
+    for ds in datasets:
+        for row in ds:
+            key = list(row["keys"])[int(row["label"])]
+            seen.setdefault(key, set()).add(int(row["label"]))
+    bad = {k: sorted(v) for k, v in seen.items() if len(v) != 1}
+    if bad:
+        raise SystemExit(
+            "the option index is not a stable class identity, so the probe would mix classes:\n"
+            f"  {bad}\n"
+            "  Re-prep the dataset with --no-shuffle so the criteria keep their authored order.")
+    return {k: sorted(v)[0] for k, v in seen.items()}
+
+
+def class_means(h_train, y_train, n_classes):
+    return torch.stack([h_train[y_train == c].mean(0) for c in range(n_classes)])
 
 
 def acc(pred, y):
@@ -159,6 +192,7 @@ def main():
     from datasets import load_from_disk
 
     train_ds, test_ds = load_from_disk(a.train), load_from_disk(a.test)
+    label_map = check_label_is_class(train_ds, test_ds)
     model, tokenizer, head = load_model(a)
     device = next(model.parameters()).device
 
@@ -172,8 +206,8 @@ def main():
     else:
         h_sys_tr, h_opt_tr, owner_tr, y_tr = sys_features(model, train_ds, device)
         h_sys_te, h_opt_te, owner_te, y_te = sys_features(model, test_ds, device)
-        h_alp_tr = alpaca_features(model, tokenizer, alpaca_texts(train_ds, TRAIN_PROMPTS), device)
-        h_alp_te = alpaca_features(model, tokenizer, alpaca_texts(test_ds, EVAL_PROMPTS), device)
+        h_alp_tr = alpaca_features(model, tokenizer, alpaca_texts(train_ds, a.train_prompts), device)
+        h_alp_te = alpaca_features(model, tokenizer, alpaca_texts(test_ds, a.test_prompts), device)
         torch.save({"sys_tr": (h_sys_tr, h_opt_tr, owner_tr, y_tr), "sys_te": (h_sys_te, h_opt_te, owner_te, y_te),
                     "alp_tr": h_alp_tr, "alp_te": h_alp_te}, cache)
 
@@ -182,10 +216,16 @@ def main():
     base_te = acc(logits_te.argmax(-1), y_te)
 
     report = {"weight": a.weight, "n_train": len(train_ds), "n_test": len(test_ds),
+              "label_map": label_map,
               "pointer_base_test": base_te, "pointer_base_train": acc(logits_tr.argmax(-1), y_tr)}
 
-    d_alp, _ = ncm(h_alp_tr, y_tr, h_alp_te)
-    d_sys, _ = ncm(h_sys_tr, y_tr, h_sys_te)
+    K = int(y_tr.max()) + 1
+    if set(y_tr.tolist()) != set(range(K)) or set(y_te.tolist()) - set(range(K)):
+        raise SystemExit(f"the few-shot pool must cover classes 0..{K - 1}; "
+                         f"got train {sorted(set(y_tr.tolist()))} test {sorted(set(y_te.tolist()))}")
+    report["n_classes"] = K
+    d_alp, _ = ncm(h_alp_tr, y_tr, h_alp_te, K)
+    d_sys, _ = ncm(h_sys_tr, y_tr, h_sys_te, K)
     report["ncm_alpaca_test"] = acc(d_alp.argmin(-1), y_te)
     report["ncm_sys_test"] = acc(d_sys.argmin(-1), y_te)
 
@@ -197,12 +237,12 @@ def main():
 
     def steer_class(alphas):
         mu = h_alp_tr.mean(0)
-        v = torch.stack([h_alp_tr[y_tr == c].mean(0) - mu for c in range(5)])
+        v = torch.stack([h_alp_tr[y_tr == c].mean(0) - mu for c in range(K)])
         scores = {}
         for alpha in alphas:
             for name, hs, yy in (("train", h_sys_tr, y_tr), ("test", h_sys_te, y_te)):
-                sc = torch.zeros(len(hs), 5)
-                for c in range(5):
+                sc = torch.zeros(len(hs), K)
+                for c in range(K):
                     z = head_option_logits(head, hs + alpha * v[c], h_opt_tr if name == "train" else h_opt_te,
                                            owner_tr if name == "train" else owner_te).reshape(len(hs), -1)
                     sc[:, c] = z[:, c]
@@ -230,8 +270,9 @@ def main():
     report["steer_global_best_alpha"] = float(best_g[1])
 
     def fusion(betas, temps):
-        dv_tr = (torch.cdist(h_alp_tr, torch.stack([h_alp_tr[y_tr == c].mean(0) for c in range(5)]))) ** 2
-        dv_te = (torch.cdist(h_alp_te, torch.stack([h_alp_tr[y_tr == c].mean(0) for c in range(5)]))) ** 2
+        mu = class_means(h_alp_tr, y_tr, K)
+        dv_tr = (torch.cdist(h_alp_tr, mu)) ** 2
+        dv_te = (torch.cdist(h_alp_te, mu)) ** 2
         results = {}
         for temp in temps:
             p_tr = torch.softmax(-dv_tr / temp, -1)
@@ -243,7 +284,7 @@ def main():
                 results.setdefault("test", {})[(temp, beta)] = acc(z_te.argmax(-1), y_te)
         return results, p_te
 
-    med = float(((torch.cdist(h_alp_tr, torch.stack([h_alp_tr[y_tr == c].mean(0) for c in range(5)]))) ** 2).median())
+    med = float(((torch.cdist(h_alp_tr, class_means(h_alp_tr, y_tr, K))) ** 2).median())
     temps = [med * t for t in (0.1, 0.2, 0.35, 0.5, 0.75, 1.0)]
     betas = [0.0, 0.25, 0.5, 1.0, 2.0, 4.0, 8.0, 16.0]
     fus, p_te = fusion(betas, temps)

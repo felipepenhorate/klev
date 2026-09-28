@@ -11,6 +11,19 @@
 export HSA_OVERRIDE_GFX_VERSION=10.3.0
 export CUDA_VISIBLE_DEVICES=0
 
+# DO NOT `rm -rf ~/.triton/cache` on this machine.
+#
+# The long klev run and the RumourEval external LoRA both succeeded only because a *warm*
+# Triton cache already held device code for Qwen3.5's gated-deltanet attention across the
+# sequence lengths those runs saw. A cold autotune on gfx1030 aborts the process:
+#   LLVM ERROR: Cannot select: intrinsic %llvm.amdgcn.fdot2.bf16.bf16
+# This is Triton's autotuner *compiling a candidate*, not a training-dtype problem, so neither
+# KLEV_DTYPE=fp16, nor dropping UNSLOTH_FORCE_FLOAT32, nor changing the sequence length gets
+# past it -- the bf16 candidate is in the search space either way. Wiping the cache destroyed
+# the only working state this card had, and it cannot be rebuilt in reasonable time (a cold
+# run at 768 tokens spent 1013 s autotuning one step before aborting). Keep sequences at or
+# below 512 tokens, which is where the good configs lived.
+
 export ROCM_PATH=/opt/rocm
 export HIP_PATH="${ROCM_PATH}/hip"
 export PATH="${ROCM_PATH}/bin:${PATH}"
