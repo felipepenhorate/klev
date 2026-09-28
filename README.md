@@ -159,8 +159,19 @@ knowledge/stance gaps vs heavier fine-tunes (see the tables above).
 
 ## Install and use
 
+klev is **not on PyPI** — install it from the repository:
+
 ```bash
-pip install klev
+pip install "klev @ git+https://github.com/felipepenhorate/klev.git"
+```
+
+On ROCm, keep your torch and let unsloth be installed separately (it would otherwise replace
+the ROCm build):
+
+```bash
+pip install --no-deps "klev @ git+https://github.com/felipepenhorate/klev.git"
+pip install --no-deps unsloth
+source scripts/rocm_env.sh
 ```
 
 The library carries the loader, the pointer readout, the record format and both usage paths, so
