@@ -63,6 +63,11 @@ def parse_args():
     ap.add_argument("--train-prompts", required=True,
                     help='JSON: conv_key -> {"prompt": ...} for --train (the alpaca Instruction slot)')
     ap.add_argument("--test-prompts", required=True, help="same, for --test")
+    ap.add_argument("--max-seq-length", type=int, default=4096,
+                    help="4096 is the reference value for the 16 GB RTX 4080. The RX 6600M "
+                         "aborts the process at that size (HSA_STATUS_ERROR_EXCEPTION) and no "
+                         "stitch row needs it -- TweetEval tops out at 131 tokens -- so pass "
+                         "512 there; scripts/rocm_env.sh exports KLEV_STITCH_MAX_SEQ for it")
     ap.add_argument("--alpha-max", type=float, default=6.0)
     ap.add_argument("--alpha-step", type=float, default=0.25)
     return ap.parse_args()
@@ -73,7 +78,7 @@ def load_model(a):
     from unsloth import FastModel
 
     model, processor = FastModel.from_pretrained(
-        model_name=a.model, max_seq_length=4096, dtype=compute_dtype(), load_in_4bit=True,
+        model_name=a.model, max_seq_length=a.max_seq_length, dtype=compute_dtype(), load_in_4bit=True,
         use_gradient_checkpointing=False, trust_remote_code=False)
     tokenizer = getattr(processor, "tokenizer", processor)
     tokenizer.add_special_tokens({"additional_special_tokens": config.DELIMITERS})

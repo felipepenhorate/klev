@@ -34,6 +34,12 @@ export CUDA_VISIBLE_DEVICES=0
 # degenerates to predicting the majority class on all 200 test rows. Longer-context tasks need
 # the 4080.
 
+# The stitch's --max-seq-length default is 4096, which is right for the 4080 that is the main
+# target. This card hard-faults at that size (HSA_STATUS_ERROR_EXCEPTION during load) and needs
+# nothing like it, so the ROCm-side callers pass this instead of baking a card-specific default
+# into shared code. TweetEval stitch rows top out at 131 tokens.
+export KLEV_STITCH_MAX_SEQ="${KLEV_STITCH_MAX_SEQ:-512}"
+
 export ROCM_PATH=/opt/rocm
 export HIP_PATH="${ROCM_PATH}/hip"
 export PATH="${ROCM_PATH}/bin:${PATH}"

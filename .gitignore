@@ -219,3 +219,7 @@ __marimo__/
 
 # unsloth generated
 unsloth_compiled_cache/
+
+# ROCm core dumps from HSA_STATUS_ERROR_EXCEPTION hard faults on the gfx1032 box
+gpucore.*
+core.*
