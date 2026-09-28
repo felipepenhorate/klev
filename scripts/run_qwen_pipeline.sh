@@ -12,6 +12,12 @@ source scripts/rocm_env.sh
 # qwen3_5 is in unsloth's FORCE_FLOAT32 list: plain fp16 NaNs the grad_norm in the backward.
 export UNSLOTH_FORCE_FLOAT32=1
 
+# Which base this run trains. data/config.py holds the presets: qwen35-08b (default, the arm
+# that ran here), e4b (the original reference recipe, 16 GB class card), e2b-qat (blocked
+# below 12 GB VRAM -- docs/m10-gemma4-e2b.md). --preset sets the model AND its delimiters
+# together, so the two cannot drift apart.
+PRESET="${PRESET:-qwen35-08b}"
+
 KLEV_RUNS="${KLEV_RUNS:-/home/feipe/Documentos/Projects/klev-runs}"
 PREP="$KLEV_RUNS/prep/dv7-qwen-full"
 CACHE="$KLEV_RUNS/cache/dv7-qwen-full"
@@ -24,21 +30,21 @@ RUN="$KLEV_RUNS/qwen35-08b"
 # used cosine; it is a bug workaround, not a choice.
 SCHED=linear
 
-echo "=== [1/5] prep full decision-v7 train ==="
-$PY data/prep_dataset.py --suite evals/v7/decision-v7 --split train \
+echo "=== [1/5] prep full decision-v7 train (preset $PRESET) ==="
+$PY data/prep_dataset.py --preset "$PRESET" --suite evals/v7/decision-v7 --split train \
     --out "$PREP" --max-seq 2048 --garbage-frac 0.1
 
 echo "=== [2/5] teacher cache (frozen-base top-k at every content position) ==="
-$PY data/cache_teacher_logits.py --dataset "$PREP" --out "$CACHE" --top-k 32
+$PY data/cache_teacher_logits.py --preset "$PRESET" --dataset "$PREP" --out "$CACHE" --top-k 32
 
 echo "=== [3/5] prep eval splits ==="
-$PY data/prep_dataset.py --suite evals/v7/decision-v7 --split development \
+$PY data/prep_dataset.py --preset "$PRESET" --suite evals/v7/decision-v7 --split development \
     --out "$KLEV_RUNS/prep/dv7-qwen-dev" --max-seq 2048 --garbage-frac 0.0
-$PY data/prep_dataset.py --suite evals/v4/transfer-v4 --split development \
+$PY data/prep_dataset.py --preset "$PRESET" --suite evals/v4/transfer-v4 --split development \
     --out "$KLEV_RUNS/prep/tv4-qwen-dev" --max-seq 2048 --garbage-frac 0.0
 
 echo "=== [4/5] train: 3,894 steps = 2 epochs, batch 1 x accum 8 (E4B main run's schedule) ==="
-$PY training/train_distill.py --dataset "$PREP" --teacher-cache "$CACHE" \
+$PY training/train_distill.py --preset "$PRESET" --dataset "$PREP" --teacher-cache "$CACHE" \
     --out-dir "$RUN" --max-steps 3894 --lr 1e-4 --kl-weight 0.3 \
     --lora-r 16 --lora-alpha 32 --warmup-steps 50 --save-steps 500 \
     --lr-scheduler-type "$SCHED"

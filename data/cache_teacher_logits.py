@@ -29,7 +29,7 @@ import numpy as np
 import torch
 from datasets import load_from_disk
 
-from data.config import DELIMITERS, MODEL
+from data import config
 from data.suites import write_json
 from model.load import compute_dtype
 
@@ -38,7 +38,11 @@ def parse_args():
     ap = argparse.ArgumentParser()
     ap.add_argument("--dataset", required=True)
     ap.add_argument("--out", required=True, help="output path without extension")
-    ap.add_argument("--model", default=MODEL)
+    ap.add_argument("--model", default=None,
+                    help="override the preset's model path (unset = follow --preset)")
+    ap.add_argument("--preset", default="",
+                    help="base-model preset; sets the model and its delimiters together. One of: "
+                         + ", ".join(sorted(config.PRESETS)) + ". Overrides KLEV_PRESET.")
     ap.add_argument("--top-k", type=int, default=32)
     ap.add_argument("--chunk", type=int, default=128, help="positions per logits chunk")
     ap.add_argument("--limit", type=int, default=0)
@@ -49,13 +53,15 @@ def parse_args():
 
 def main():
     a = parse_args()
+    config.apply_preset(a.preset)
+    a.model = a.model or config.MODEL
     from unsloth import FastModel
 
     model, processor = FastModel.from_pretrained(
         model_name=a.model, max_seq_length=a.max_seq, dtype=compute_dtype(),
         load_in_4bit=True, use_gradient_checkpointing=False, trust_remote_code=False)
     tokenizer = getattr(processor, "tokenizer", processor)
-    tokenizer.add_special_tokens({"additional_special_tokens": DELIMITERS})
+    tokenizer.add_special_tokens({"additional_special_tokens": config.DELIMITERS})
     model.eval()
     model.config.use_cache = False
     if hasattr(model.config, "text_config"):

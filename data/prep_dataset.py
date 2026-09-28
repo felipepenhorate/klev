@@ -27,7 +27,8 @@ sys.path.insert(0, str(ROOT))
 
 from transformers import AutoTokenizer
 
-from data.config import DELIMITERS, MAX_BRANCH, MAX_SEQ, MAX_STATE, MODEL
+from data import config
+from data.config import MAX_BRANCH, MAX_SEQ, MAX_STATE
 from data.encoding import ContextOverflow, build_target, encode_row
 from data.format import materialize
 from data.suites import load_split, write_json
@@ -46,7 +47,11 @@ def parse_args():
     ap.add_argument("--garbage-frac", type=float, default=0.1)
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--no-shuffle", action="store_true", help="keep the criteria order as authored")
-    ap.add_argument("--model", default=MODEL, help="tokenizer to encode with")
+    ap.add_argument("--model", default=None,
+                    help="override the preset's model path (unset = follow --preset)")
+    ap.add_argument("--preset", default="",
+                    help="base-model preset; sets the model and its delimiters together. One of: "
+                         + ", ".join(sorted(config.PRESETS)) + ". Overrides KLEV_PRESET.")
     a = ap.parse_args()
     if not 0 <= a.garbage_frac <= 1:
         ap.error("--garbage-frac must be in [0, 1]")
@@ -94,8 +99,10 @@ def augment_request(req, rng, garbage_frac, shuffle):
 
 def main():
     a = parse_args()
+    config.apply_preset(a.preset)
+    a.model = a.model or config.MODEL
     tokenizer = AutoTokenizer.from_pretrained(a.model)
-    tokenizer.add_special_tokens({"additional_special_tokens": DELIMITERS})
+    tokenizer.add_special_tokens({"additional_special_tokens": config.DELIMITERS})
     records = load_records(a)
     rows, stats = [], Counter()
     lengths = []

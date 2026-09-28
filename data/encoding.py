@@ -11,11 +11,21 @@ mask marks the positions whose *next* token is still state/instruction text: tho
 positions the knowledge-KL term anchors and, because option order changes never touch them,
 they are exactly the prefix-teacher-cache key (3.4).
 """
-from .config import DECIDE, OPTION, OPTION_END, QUESTION, STATE
+from . import config
 from .format import state_text
 
 _WANTED = ("state", "q", "opt", "opt_end", "decide")
-_TOKENS = (STATE, QUESTION, OPTION, OPTION_END, DECIDE)
+def _tokens():
+    """The five delimiters, read at call time.
+
+    This must NOT be a module constant: `from .config import STATE, ...` captures the default
+    preset's delimiters at import time, before argparse has run, so a non-default `--preset`
+    builds its row with one family's delimiter strings while the tokenizer has the other's
+    registered. That fails as a bare
+      AssertionError: row layout mismatch: {'state': 0, 'q': 0, ...}
+    with every delimiter count zero.
+    """
+    return (config.STATE, config.QUESTION, config.OPTION, config.OPTION_END, config.DECIDE)
 
 
 class ContextOverflow(ValueError):
@@ -25,7 +35,7 @@ class ContextOverflow(ValueError):
 def escape_user(text: str) -> str:
     """Rewrite delimiter token strings in user text so they cannot be forged (Kev rewrites
     `<|name|>` to `<¦name¦>` before tokenizing, for the same reason)."""
-    for token in _TOKENS:
+    for token in _tokens():
         if token in text:
             text = text.replace(token, token.replace("<", "\u00a6").replace(">", "\u00a6"))
     return text
@@ -33,7 +43,7 @@ def escape_user(text: str) -> str:
 
 def delimiter_positions(tokenizer, ids) -> dict:
     """{name: [token indices]} for every delimiter occurrence, by id."""
-    ids_wanted = {name: tokenizer.convert_tokens_to_ids(token) for name, token in zip(_WANTED, _TOKENS)}
+    ids_wanted = {name: tokenizer.convert_tokens_to_ids(token) for name, token in zip(_WANTED, _tokens())}
     found = {name: [] for name in ids_wanted}
     for i, token_id in enumerate(ids):
         for name, wanted in ids_wanted.items():
@@ -43,6 +53,7 @@ def delimiter_positions(tokenizer, ids) -> dict:
 
 
 def build_row_text(state: str, instruction: str, options: list[str]) -> str:
+    STATE, QUESTION, OPTION, OPTION_END, DECIDE = _tokens()
     parts = [STATE, escape_user(state), QUESTION, escape_user(instruction)]
     for option in options:
         parts += [OPTION, escape_user(option), OPTION_END]

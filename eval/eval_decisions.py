@@ -25,7 +25,7 @@ import torch.nn.functional as F
 from datasets import load_from_disk
 
 from data import metrics
-from data.config import DELIMITERS, MODEL
+from data import config
 from data.suites import write_json
 from model.delimiters import apply_delimiter_deltas
 from model.head import PointerHead
@@ -37,7 +37,11 @@ def parse_args():
     ap.add_argument("--run", required=True, help="checkpoint dir with adapter/ and head.pt")
     ap.add_argument("--dataset", required=True, help="prepared rows (data/prep_dataset.py)")
     ap.add_argument("--out", required=True)
-    ap.add_argument("--model", default=MODEL)
+    ap.add_argument("--model", default=None,
+                    help="override the preset's model path (unset = follow --preset)")
+    ap.add_argument("--preset", default="",
+                    help="base-model preset; sets the model and its delimiters together. One of: "
+                         + ", ".join(sorted(config.PRESETS)) + ". Overrides KLEV_PRESET.")
     ap.add_argument("--limit", type=int, default=0)
     ap.add_argument("--batch", type=int, default=4, help="rows per forward")
     ap.add_argument("--extra-adapter", default="", help="third-party LoRA dir to combine with the run adapter")
@@ -56,8 +60,8 @@ def load_checkpoint(run: Path, base: str, device="cuda", extra: str = "", extra_
         model_name=base, max_seq_length=2048, dtype=compute_dtype(), load_in_4bit=True,
         use_gradient_checkpointing=False, trust_remote_code=False)
     tokenizer = getattr(processor, "tokenizer", processor)
-    tokenizer.add_special_tokens({"additional_special_tokens": DELIMITERS})
-    delimiter_ids = [tokenizer.convert_tokens_to_ids(t) for t in DELIMITERS]
+    tokenizer.add_special_tokens({"additional_special_tokens": config.DELIMITERS})
+    delimiter_ids = [tokenizer.convert_tokens_to_ids(t) for t in config.DELIMITERS]
     deltas = apply_delimiter_deltas(model, language_model, delimiter_ids)
     model = PeftModel.from_pretrained(model, str(run / "adapter"))
     if extra:
@@ -81,6 +85,8 @@ def load_checkpoint(run: Path, base: str, device="cuda", extra: str = "", extra_
 
 def main():
     a = parse_args()
+    config.apply_preset(a.preset)
+    a.model = a.model or config.MODEL
     run, out = Path(a.run), Path(a.out)
     out.mkdir(parents=True, exist_ok=True)
     dataset = load_from_disk(a.dataset)

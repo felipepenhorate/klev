@@ -31,7 +31,8 @@ import torch.nn.functional as F
 from datasets import load_from_disk
 from transformers import Trainer, TrainerCallback, TrainingArguments
 
-from data.config import DEFAULTS, DELIMITERS, MODEL
+from data import config
+from data.config import DEFAULTS
 from model.delimiters import apply_delimiter_deltas
 from model.head import PointerHead
 from model.load import compute_dtype, language_model
@@ -43,7 +44,11 @@ def parse_args():
     ap = argparse.ArgumentParser()
     ap.add_argument("--dataset", required=True, help="a prepared dataset directory")
     ap.add_argument("--out-dir", required=True)
-    ap.add_argument("--model", default=MODEL)
+    ap.add_argument("--model", default=None,
+                    help="override the preset's model path (unset = follow --preset)")
+    ap.add_argument("--preset", default="",
+                    help="base-model preset; sets the model and its delimiters together. One of: "
+                         + ", ".join(sorted(config.PRESETS)) + ". Overrides KLEV_PRESET.")
     ap.add_argument("--max-steps", type=int, default=500)
     ap.add_argument("--per-device-batch-size", type=int, default=1)
     ap.add_argument("--grad-accum", type=int, default=8)
@@ -246,8 +251,8 @@ def build_model(a):
         model_name=a.model, max_seq_length=a.max_seq_length, dtype=dtype,
         load_in_4bit=True, use_gradient_checkpointing=gc, trust_remote_code=False)
     tokenizer = getattr(processor, "tokenizer", processor)
-    tokenizer.add_special_tokens({"additional_special_tokens": DELIMITERS})
-    delimiter_ids = [tokenizer.convert_tokens_to_ids(t) for t in DELIMITERS]
+    tokenizer.add_special_tokens({"additional_special_tokens": config.DELIMITERS})
+    delimiter_ids = [tokenizer.convert_tokens_to_ids(t) for t in config.DELIMITERS]
     deltas = apply_delimiter_deltas(model, language_model, delimiter_ids)
     model = FastModel.get_peft_model(
         model, r=a.lora_r, lora_alpha=a.lora_alpha, lora_dropout=0.0, target_modules=TARGET_MODULES,
@@ -305,6 +310,8 @@ def build_model(a):
 
 def main():
     a = parse_args()
+    config.apply_preset(a.preset)
+    a.model = a.model or config.MODEL
     torch.manual_seed(a.seed)
     model, tokenizer, head, deltas = build_model(a)
 

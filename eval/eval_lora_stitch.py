@@ -28,7 +28,7 @@ import unsloth  # noqa: F401
 import numpy as np
 import torch
 
-from data.config import DELIMITERS, MODEL
+from data import config
 from data.suites import write_json
 from model.delimiters import apply_delimiter_deltas
 from model.head import PointerHead
@@ -49,7 +49,11 @@ ALPACA = """Below is an instruction that describes a task, paired with an input 
 
 def parse_args():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--model", default=MODEL)
+    ap.add_argument("--model", default=None,
+                    help="override the preset's model path (unset = follow --preset)")
+    ap.add_argument("--preset", default="",
+                    help="base-model preset; sets the model and its delimiters together. One of: "
+                         + ", ".join(sorted(config.PRESETS)) + ". Overrides KLEV_PRESET.")
     ap.add_argument("--run", required=True)
     ap.add_argument("--ext", required=True)
     ap.add_argument("--weight", type=float, default=1.0)
@@ -72,8 +76,8 @@ def load_model(a):
         model_name=a.model, max_seq_length=4096, dtype=compute_dtype(), load_in_4bit=True,
         use_gradient_checkpointing=False, trust_remote_code=False)
     tokenizer = getattr(processor, "tokenizer", processor)
-    tokenizer.add_special_tokens({"additional_special_tokens": DELIMITERS})
-    delimiter_ids = [tokenizer.convert_tokens_to_ids(t) for t in DELIMITERS]
+    tokenizer.add_special_tokens({"additional_special_tokens": config.DELIMITERS})
+    delimiter_ids = [tokenizer.convert_tokens_to_ids(t) for t in config.DELIMITERS]
     deltas = apply_delimiter_deltas(model, language_model, delimiter_ids)
     model = PeftModel.from_pretrained(model, str(Path(a.run) / "adapter"))
     model.load_adapter(a.ext, adapter_name="ext", is_trainable=False)
@@ -187,6 +191,8 @@ def acc(pred, y):
 
 def main():
     a = parse_args()
+    config.apply_preset(a.preset)
+    a.model = a.model or config.MODEL
     out = Path(a.out)
     out.mkdir(parents=True, exist_ok=True)
     from datasets import load_from_disk
