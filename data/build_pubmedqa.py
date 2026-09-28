@@ -34,16 +34,26 @@ ALPACA_PROMPT = (
 )
 
 
-def abstracts_text(contexts, max_words=45, max_abstracts=2):
+def abstracts_text(contexts, max_words=30, max_abstracts=1):
     """Truncated evidence, so both views of the row stay under this card's usable sequence length.
 
-    Qwen3.5's gated-deltanet attention picks a *bf16* Triton kernel once the sequence passes
-    ~512 tokens, and gfx1030 has no bf16 fdot2, so the run dies with
+    The length is a measured limit of this card, not a guess. Qwen3.5's gated-deltanet
+    attention autotunes over block sizes, and on gfx1030 (no bf16 fdot2) a fresh autotune at
+    the larger block sizes aborts with
       LLVM ERROR: Cannot select: intrinsic %llvm.amdgcn.fdot2.bf16.bf16
-    (observed at max_seq 768: step 1 took 1013 s of autotune, then aborted). With the full
-    abstracts the decision rows reach p50 406 / p100 742 tokens, which would also crash the
-    stitch's own forward. So cap the evidence here, once, for both the klev row and the alpaca
-    prompt -- the probe compares the decide space against the alpaca space, so the two must be
+    Measured on the alpaca prompt lengths actually produced:
+
+      2 abstracts x 45 words   p50 221  p90 253  p100 304   aborts
+      2 abstracts x 30 words   p50 190  p90 214  p100 238   aborts
+      1 abstract  x 45 words   p50 159  p90 177  p100 212   aborts
+      1 abstract  x 30 words   p50 144  p90 157  p100 177   trains
+      1 abstract  x 20 words   p50 132  p90 145  p100 157   trains
+
+    The RumourEval adapter, which trains on this card, tops out at p100 195. So the default is
+    the most generous setting that fits under that. This is a genuine cost: 30 words of one
+    abstract is thin evidence for a yes/no/maybe judgement, so expect the adapter to be weaker
+    here than on full abstracts. It is the same cap for the klev row and the alpaca prompt --
+    the stitch compares the decide space against the alpaca space, so the two must be
     truncated identically.
     """
     kept = [c.strip() for c in contexts[:max_abstracts]]
@@ -54,12 +64,13 @@ def abstracts_text(contexts, max_words=45, max_abstracts=2):
     return "\n".join(out)
 
 
-def row_record(split, i, r):
+def row_record(split, i, r, max_words=30, max_abstracts=1):
     contexts = r["context"]["contexts"]
     label = str(r["final_decision"]).strip().lower()
     if label not in CRITERIA or not contexts:
         return None, None
-    state = {"question": str(r["question"]), "abstracts": abstracts_text(contexts)}
+    state = {"question": str(r["question"]),
+             "abstracts": abstracts_text(contexts, max_words, max_abstracts)}
     rec = {
         "state": state,
         "questions": {"answer": {
@@ -70,7 +81,8 @@ def row_record(split, i, r):
                   "repo": "qiaojin/PubMedQA:pqa_labeled", "pubid": str(r.get("pubid", "")),
                   "variant": "clean"},
     }
-    prompt = ALPACA_PROMPT.format(question=str(r["question"]), abstracts=abstracts_text(contexts))
+    prompt = ALPACA_PROMPT.format(question=str(r["question"]),
+                                  abstracts=abstracts_text(contexts, max_words, max_abstracts))
     return rec, prompt
 
 
@@ -80,6 +92,9 @@ def parse_args():
     ap.add_argument("--per-class-shot", type=int, default=8,
                     help="balanced rows per class for the stitch's few-shot pool")
     ap.add_argument("--test-cap", type=int, default=200, help="cap on the test set (0 = all)")
+    ap.add_argument("--abstract-words", type=int, default=30,
+                    help="words kept per abstract (see abstracts_text: this card aborts above ~195 total tokens)")
+    ap.add_argument("--abstracts", type=int, default=1, help="how many abstracts to keep")
     ap.add_argument("--seed", type=int, default=0)
     return ap.parse_args()
 
@@ -91,7 +106,7 @@ def main():
     raw = load_dataset("qiaojin/PubMedQA", "pqa_labeled", split="train")
     recs, prompts = [], {}
     for i, r in enumerate(raw):
-        rec, prompt = row_record("train", i, r)
+        rec, prompt = row_record("train", i, r, a.abstract_words, a.abstracts)
         if rec is None:
             continue
         prompts[rec["_meta"]["id"].split("/")[-1]] = {"prompt": prompt, "answer": rec["questions"]["answer"]["label"]}

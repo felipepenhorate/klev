@@ -11,18 +11,28 @@
 export HSA_OVERRIDE_GFX_VERSION=10.3.0
 export CUDA_VISIBLE_DEVICES=0
 
-# DO NOT `rm -rf ~/.triton/cache` on this machine.
+# SEQUENCE LENGTH CEILING on this card. Not a dtype problem, and not a cache problem.
 #
-# The long klev run and the RumourEval external LoRA both succeeded only because a *warm*
-# Triton cache already held device code for Qwen3.5's gated-deltanet attention across the
-# sequence lengths those runs saw. A cold autotune on gfx1030 aborts the process:
+# Qwen3.5's gated-deltanet attention autotunes over block sizes, and past a certain length the
+# search reaches a bf16 candidate that gfx1030 cannot compile, so the process aborts:
 #   LLVM ERROR: Cannot select: intrinsic %llvm.amdgcn.fdot2.bf16.bf16
-# This is Triton's autotuner *compiling a candidate*, not a training-dtype problem, so neither
-# KLEV_DTYPE=fp16, nor dropping UNSLOTH_FORCE_FLOAT32, nor changing the sequence length gets
-# past it -- the bf16 candidate is in the search space either way. Wiping the cache destroyed
-# the only working state this card had, and it cannot be rebuilt in reasonable time (a cold
-# run at 768 tokens spent 1013 s autotuning one step before aborting). Keep sequences at or
-# below 512 tokens, which is where the good configs lived.
+# The ceiling was measured, not guessed. Alpaca-prompt token lengths, same model, same script,
+# same batch, same max_seq=512, empty Triton cache throughout:
+#
+#   2 abstracts x 45 words   p50 221  p90 253  p100 304   aborts
+#   2 abstracts x 30 words   p50 190  p90 214  p100 238   aborts
+#   1 abstract  x 45 words   p50 159  p90 177  p100 212   aborts
+#   1 abstract  x 30 words   p50 144  p90 157  p100 177   trains
+#
+# The RumourEval adapter, which trains here, tops out at p100 195. So: keep the whole tokenized
+# row under ~195 tokens. Nothing else moves it -- KLEV_DTYPE=fp16 does not, dropping
+# UNSLOTH_FORCE_FLOAT32 does not, and clearing ~/.triton/cache does not help (a from-empty
+# cache trains the short case in 119 s). Do not waste time re-testing those.
+#
+# Cost of the ceiling: it is a real constraint on what task this card can host. PubMedQA runs
+# only with the evidence cut to 30 words of one abstract, and at that compression the adapter
+# degenerates to predicting the majority class on all 200 test rows. Longer-context tasks need
+# the 4080.
 
 export ROCM_PATH=/opt/rocm
 export HIP_PATH="${ROCM_PATH}/hip"
