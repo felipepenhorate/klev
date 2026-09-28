@@ -1,0 +1,73 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "klev"
+version = "0.1.0"
+description = "A typed decision model: calibrated option probabilities plus an explicit rejection channel"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Felipe Penhorate" }]
+keywords = [
+  "decision-model", "calibrated-probabilities", "pointer-head", "qlora", "unsloth",
+  "peft", "type-safe", "multiple-choice", "abstention",
+]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Developers",
+  "Intended Audience :: Science/Research",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+# The versions below are the floors the code actually needs, not the latest. Two are
+# load-bearing and easy to trip over:
+#   transformers >= 5.5.0 -- the `qwen3_5` and `gemma4` architectures do not exist before it
+#     (5.3.0 raises "Transformers does not recognize this architecture", which unsloth then
+#     misreports as a generic "not supported yet" ValueError)
+#   unsloth >= 2026.9.11  -- first release carrying gemma4 support
+# See docs/m11-qwen35-08b.md.
+dependencies = [
+  "torch>=2.4",
+  "transformers>=5.5.0",
+  "unsloth>=2026.9.11",
+  "peft>=0.17",
+  "datasets>=3.0",
+  "accelerate>=1.0",
+  "huggingface-hub>=0.34",
+  "safetensors>=0.4",
+  "numpy>=1.26",
+  "pydantic>=2.0",
+  "scikit-learn>=1.4",
+  "requests>=2.32",
+]
+
+[project.urls]
+Homepage = "https://github.com/felipepenhorate/klev"
+Repository = "https://github.com/felipepenhorate/klev"
+Issues = "https://github.com/felipepenhorate/klev/issues"
+
+[project.scripts]
+# Both take the same args as the modules they wrap; `serve` is optional and
+# `system-one` needs no server at all.
+klev-serve = "klev:serve"
+klev-system-one = "klev:system_one"
+
+[tool.setuptools]
+# klev.py is the public entry point; the research packages install flat so that the existing
+# `from data.config import ...` style imports keep resolving to one implementation rather than
+# a second copy under `klev.`. klev.py puts its own directory on sys.path to that end.
+py-modules = ["klev"]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["data*", "model*", "training*", "eval*", "serve*", "examples*", "scripts*"]
+exclude = ["evals*", "runs*", "docs*", "tests*"]
+
+[tool.setuptools.package-data]
+"*" = ["*.json", "*.yaml", "*.yml", "*.jinja", "*.sh", "*.ipynb"]

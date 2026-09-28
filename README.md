@@ -133,16 +133,27 @@ collides with it or has to be absorbed with a full delta run; with the anchor, n
 capabilities are a 30-example stitching job. The price of the anchor is the same as always —
 knowledge/stance gaps vs heavier fine-tunes (see the tables above).
 
-## Using it
+## Install and use
+
+```bash
+pip install klev
+```
+
+The library carries the loader, the pointer readout, the record format and both usage paths, so
+consuming a checkpoint does not mean cloning this repo. `transformers >= 5.5.0` is a hard floor —
+`gemma4` and `qwen3_5` do not exist before it, and on 5.3.0 the failure is misreported by
+unsloth as a generic "not supported yet" ValueError. On ROCm, install unsloth with `--no-deps` so
+it does not replace your ROCm torch, and `source scripts/rocm_env.sh` before importing.
 
 A decision model is small and stateless, so the normal way to use one is **in-process** — load
 it once, call it as often as you like. No server, no port, no daemon. Full detail and the
 validation log in [`docs/m14-usage.md`](docs/m14-usage.md).
 
 ```python
-from model.infer import load_klev, answer
+import unsloth  # noqa: F401  — must precede transformers / peft
+from klev import load_klev, answer
 
-model, tokenizer, head = load_klev("lumierenoir/klev-0.8b")   # or a local dir
+model, tokenizer, head = load_klev("lumierenoir/klev-0.8b")   # base read from the checkpoint
 
 result = answer(model, tokenizer, head, {
     "state": "My card was declined twice at a supermarket and the ATM refused it too.",
@@ -160,8 +171,8 @@ result["answers"]["action"]["none"]     # -> 0.196, the rejection channel
 
 ```bash
 # same thing from a shell, with a plain-language readback
-python examples/system_one.py --ckpt lumierenoir/klev-0.8b
-python examples/system_one.py --ckpt lumierenoir/klev-0.8b --request my_request.json
+klev-system-one --ckpt lumierenoir/klev-0.8b
+klev-system-one --ckpt lumierenoir/klev-0.8b --request my_request.json
 ```
 
 `temperature` defaults to **1.0, the raw readout** — what the benchmark tables score. Serve at
@@ -173,7 +184,7 @@ numbers in the model card; `head.pt` stores 1.0 because it is written during tra
 Several processes sharing one warm copy of the weights, or a caller that isn't Python.
 
 ```bash
-python serve/server.py --ckpt lumierenoir/klev-0.8b --port 8090 --temperature 2.2974
+klev-serve --ckpt lumierenoir/klev-0.8b --port 8090 --temperature 2.2974
 curl -s localhost:8090/v1/systemone -H 'content-type: application/json' -d @request.json
 ```
 
@@ -184,6 +195,7 @@ curl -s localhost:8090/v1/systemone -H 'content-type: application/json' -d @requ
 ## Layout
 
 ```
+klev.py      the public entry point: load_klev, answer, the two console scripts
 model/       pointer head, delimiter embedding deltas, loading helpers, model/infer.py
 data/        encoding, formatting, suites, dataset builders, teacher cache
 training/    DistillTrainer (pointer CE + cached-teacher KL), build_model, train_ext_lora

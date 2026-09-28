@@ -43,9 +43,24 @@ def load_klev(ckpt, base=None, preset="", device="cuda", max_seq_length=2048, ca
     from peft import PeftModel
     from unsloth import FastModel
 
+    run = _resolve(ckpt, cache_dir)
+    if base is None:
+        # Take the base from the checkpoint rather than from the global default. A published
+        # adapter records its own base in adapter_config.json, and pairing one with another
+        # model's weights is silent nonsense -- the readout would just be wrong, with no error.
+        # The delimiters then have to follow, so the base selects the preset.
+        base = _base_of(run)
+        if base is not None:
+            matched = _preset_for(base)
+            if matched and not preset:
+                preset = matched
+            elif not matched and not preset:
+                raise SystemExit(
+                    f"{run} is based on {base!r}, which matches no preset, so its delimiters are "
+                    f"unknown. Pass preset= explicitly. Known bases: "
+                    + ", ".join(f"{k} -> {v['model']}" for k, v in sorted(config.PRESETS.items())))
     config.apply_preset(preset)
     base = base or config.MODEL
-    run = _resolve(ckpt, cache_dir)
 
     model, processor = FastModel.from_pretrained(
         model_name=base, max_seq_length=max_seq_length, dtype=compute_dtype(),
@@ -73,6 +88,34 @@ def load_klev(ckpt, base=None, preset="", device="cuda", max_seq_length=2048, ca
     if hasattr(model.config, "text_config"):
         model.config.text_config.use_cache = False
     return model, tokenizer, head
+
+
+def _base_of(run):
+    """The base model a checkpoint's adapter was trained on, or None if it does not say."""
+    path = Path(run) / "adapter" / "adapter_config.json"
+    if not path.exists():
+        return None
+    try:
+        return json.loads(path.read_text(encoding="utf-8")).get("base_model_name_or_path")
+    except Exception:
+        return None
+
+
+def _preset_for(base):
+    """Which preset uses this base. The delimiters are the reason this matters: a klev trained on
+    Qwen reads `<|fim_prefix|>`-style rows and one trained on Gemma reads `<unused0>`.., and
+    feeding a model the wrong set fails as a bare
+    `AssertionError: row layout mismatch: {'state': 0, 'q': 0, ...}` with every count zero."""
+    base = str(base)
+    for name, spec in config.PRESETS.items():
+        if base == spec["model"]:
+            return name
+    # HF ids are sometimes stored with or without an `unsloth/` prefix or a revision suffix
+    tail = base.rsplit("/", 1)[-1]
+    for name, spec in config.PRESETS.items():
+        if tail and tail == str(spec["model"]).rsplit("/", 1)[-1]:
+            return name
+    return None
 
 
 def _resolve(ckpt, cache_dir=None):
