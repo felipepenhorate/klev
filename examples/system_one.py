@@ -71,6 +71,8 @@ def parse_args():
     ap.add_argument("--ckpt", default="lumierenoir/klev-0.8b",
                     help="Hub repo id or a local dir with adapter/ and head.pt")
     ap.add_argument("--base", default=None, help="override the base model (defaults to the preset)")
+    ap.add_argument("--backend", default=None, choices=[None, "unsloth", "plain"],
+                    help="base loader: unsloth FastModel (default) or plain transformers+bitsandbytes")
     ap.add_argument("--preset", default="qwen35-08b", choices=["qwen35-08b", "qwen35-08b-base", "e4b", "e2b-qat"])
     ap.add_argument("--request", default="", help="JSON file with {state, questions}; - for stdin")
     ap.add_argument("--temperature", type=float, default=1.0,
@@ -92,7 +94,7 @@ def main():
         request = DEMO
 
     print(f"[klev] loading {a.ckpt} (preset {a.preset}) ...", flush=True)
-    model, tokenizer, head = load_klev(a.ckpt, base=a.base, preset=a.preset)
+    model, tokenizer, head = load_klev(a.ckpt, base=a.base, preset=a.preset, backend=a.backend)
     kwargs = {"temperature": a.temperature}
     if a.max_seq:
         kwargs["max_seq"] = a.max_seq

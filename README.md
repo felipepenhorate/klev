@@ -174,6 +174,12 @@ pip install --no-deps unsloth
 source scripts/rocm_env.sh
 ```
 
+Predictions do **not** need unsloth: the default install is torch + transformers + peft +
+bitsandbytes, and `load_klev(..., backend="plain")` (the default when `KLEV_BACKEND=plain`, or
+`--backend plain`) serves the same 4-bit checkpoint through plain transformers. Same accuracy,
+98 % identical choices — [docs/m15-plain-inference.md](docs/m15-plain-inference.md). Unsloth is
+now the `train` extra, for fine-tuning and teacher caching: `pip install "klev[train] @ git+..."`.
+
 The library carries the loader, the pointer readout, the record format and both usage paths, so
 consuming a checkpoint does not mean cloning this repo. `transformers >= 5.5.0` is a hard floor —
 `gemma4` and `qwen3_5` do not exist before it, and on 5.3.0 the failure is misreported by
@@ -280,6 +286,8 @@ python eval/eval_lora_stitch.py --run /mnt/f/distill_jev_runs/main \
 - `docs/m7-external-comparison.md` — klev vs Kev-4B vs Winnow-E4B
 - `docs/m8-multilingual.md` — multilingual delta and OOD suite
 - `docs/m9-lora-stitch.md` — few-shot stitch, steering vs gated fusion
+- `docs/m14-usage.md` — in-process and HTTP usage, with the validation log
+- `docs/m15-plain-inference.md` — predictions without unsloth: the plain backend and its parity
 - `docs/m10-gemma4-e2b.md` — why the Gemma 4 E2B arm does not fit 8 GB
 - `docs/m11-qwen35-08b.md` — the Qwen3.5-0.8B port and the ROCm environment
 - `docs/m12-presets.md` — the base model as a preset (`--preset e4b` / `qwen35-08b` / …)

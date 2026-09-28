@@ -79,6 +79,8 @@ def parse_args():
     ap = argparse.ArgumentParser()
     ap.add_argument("--ckpt", default="lumierenoir/klev-0.8b", help="Hub repo id or local dir")
     ap.add_argument("--base", default=None)
+    ap.add_argument("--backend", default=None, choices=[None, "unsloth", "plain"],
+                    help="base loader: unsloth FastModel (default) or plain transformers+bitsandbytes")
     ap.add_argument("--preset", default="qwen35-08b")
     ap.add_argument("--host", default="127.0.0.1")
     ap.add_argument("--port", type=int, default=8090)
@@ -94,7 +96,7 @@ def main():
     from model.infer import answer, load_klev
 
     print(f"[serve] loading {a.ckpt} (preset {a.preset}) ...", flush=True)
-    model, tokenizer, head = load_klev(a.ckpt, base=a.base, preset=a.preset)
+    model, tokenizer, head = load_klev(a.ckpt, base=a.base, preset=a.preset, backend=a.backend)
     kwargs = {"temperature": a.temperature}
     if a.max_seq:
         kwargs["max_seq"] = a.max_seq

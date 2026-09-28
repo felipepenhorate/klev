@@ -32,9 +32,9 @@ classifiers = [
 #   unsloth >= 2026.9.11  -- first release carrying gemma4 support
 # See docs/m11-qwen35-08b.md.
 dependencies = [
+  "bitsandbytes>=0.43",
   "torch>=2.4",
   "transformers>=5.5.0",
-  "unsloth>=2026.9.11",
   "peft>=0.17",
   "datasets>=3.0",
   "accelerate>=1.0",
@@ -45,6 +45,13 @@ dependencies = [
   "scikit-learn>=1.4",
   "requests>=2.32",
 ]
+
+[project.optional-dependencies]
+# Unsloth is a training dependency, not an inference one: a published checkpoint is a forward
+# pass, which plain transformers + bitsandbytes serves from the same 4-bit weights (identical
+# accuracy, ~98% identical choices -- docs/m15-plain-inference.md). Pull it in for fine-tuning,
+# teacher caching, or the evals that use FastModel.
+train = ["unsloth>=2026.9.11"]
 
 [project.urls]
 Homepage = "https://github.com/felipepenhorate/klev"

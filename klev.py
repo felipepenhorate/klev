@@ -1,6 +1,9 @@
 """klev -- a typed decision model: calibrated option probabilities plus a rejection channel.
 
-This is the public entry point. `pip install klev`, then:
+This is the public entry point. Install it from the repository -- it is not on PyPI --
+then:
+
+    pip install "klev @ git+https://github.com/felipepenhorate/klev.git"
 
     from klev import load_klev, answer
 

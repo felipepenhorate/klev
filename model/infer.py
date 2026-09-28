@@ -32,16 +32,25 @@ from model.head import PointerHead
 from model.load import compute_dtype, language_model
 
 
-def load_klev(ckpt, base=None, preset="", device="cuda", max_seq_length=2048, cache_dir=None):
+def load_klev(ckpt, base=None, preset="", device="cuda", max_seq_length=2048, cache_dir=None,
+              backend=None):
     """Load a published (or local) klev checkpoint: base, LoRA adapter, pointer head, deltas.
 
     `ckpt` is either a local directory holding `adapter/` + `head.pt`, or a Hub repo id, which is
     downloaded into `cache_dir` (default: the HF cache). This is the whole load path -- there is
     no server and no other setup step.
+
+    `backend` picks how the base is loaded: "unsloth" (default, `FastModel`, the stack training
+    used) or "plain" (transformers + bitsandbytes, no unsloth). Unsloth exists here to make the
+    *4-bit fine-tune* fit one consumer GPU; a prediction is one forward pass, and plain
+    transformers runs it from the same checkpoint -- see docs/m15-plain-inference.md for the
+    parity numbers. `KLEV_BACKEND=plain` sets the default.
     """
-    import unsloth  # noqa: F401  (must precede transformers/peft; patches them at import)
     from peft import PeftModel
-    from unsloth import FastModel
+
+    backend = (backend or os.environ.get("KLEV_BACKEND") or "unsloth").lower()
+    if backend not in ("unsloth", "plain"):
+        raise SystemExit(f"unknown backend {backend!r}; expected 'unsloth' or 'plain'")
 
     run = _resolve(ckpt, cache_dir)
     if base is None:
@@ -62,14 +71,18 @@ def load_klev(ckpt, base=None, preset="", device="cuda", max_seq_length=2048, ca
     config.apply_preset(preset)
     base = base or config.MODEL
 
-    model, processor = FastModel.from_pretrained(
-        model_name=base, max_seq_length=max_seq_length, dtype=compute_dtype(),
-        load_in_4bit=True, use_gradient_checkpointing=False, trust_remote_code=False)
+    if backend == "unsloth":
+        model, processor = _load_base_unsloth(base, max_seq_length)
+    else:
+        model, processor = _load_base_plain(base)
     tokenizer = getattr(processor, "tokenizer", processor)
     tokenizer.add_special_tokens({"additional_special_tokens": config.DELIMITERS})
     deltas = apply_delimiter_deltas(model, language_model,
                                     [tokenizer.convert_tokens_to_ids(t) for t in config.DELIMITERS])
-    model = PeftModel.from_pretrained(model, str(run / "adapter"))
+    if backend == "unsloth":
+        model = PeftModel.from_pretrained(model, str(run / "adapter"))
+    else:
+        model = _attach_adapter_plain(model, Path(run) / "adapter")
 
     saved = torch.load(run / "head.pt", map_location="cpu", weights_only=False)
     for name, tensor in saved["deltas"].items():
@@ -116,6 +129,80 @@ def _preset_for(base):
         if tail and tail == str(spec["model"]).rsplit("/", 1)[-1]:
             return name
     return None
+
+
+def _load_base_unsloth(base, max_seq_length):
+    """The training stack: unsloth's FastModel, which patches the Gemma 4 / Qwen 3.5 forward."""
+    import unsloth  # noqa: F401  (must precede transformers/peft; patches them at import)
+    from unsloth import FastModel
+
+    return FastModel.from_pretrained(
+        model_name=base, max_seq_length=max_seq_length, dtype=compute_dtype(),
+        load_in_4bit=True, use_gradient_checkpointing=False, trust_remote_code=False)
+
+
+def _load_base_plain(base):
+    """The same 4-bit checkpoint through plain transformers + bitsandbytes, no unsloth.
+
+    Everything klev needs at prediction time is stock: a causal/conditional-generation forward,
+    bitsandbytes NF4 weights, and peft for the LoRA. The class is picked from the config so both
+    presets work -- `Gemma4ForConditionalGeneration` (multimodal wrapper) for the Gemma arms,
+    `...ForCausalLM` for the Qwen one. `max_seq_length` is unsloth-only: it configures RoPE
+    scaling, which nothing here needs at the <=2k sequences a decision row is capped at.
+    """
+    from transformers import AutoConfig, AutoModelForCausalLM, AutoModelForImageTextToText, \
+        AutoProcessor, AutoTokenizer, BitsAndBytesConfig
+
+    dtype = compute_dtype()
+    quant = BitsAndBytesConfig(load_in_4bit=True, bnb_4bit_quant_type="nf4",
+                               bnb_4bit_use_double_quant=True, bnb_4bit_compute_dtype=dtype)
+    try:
+        # The processor carries the vision stack, which a decision row never touches. Gemma 4
+        # pulls Pillow in for it, so fall back to the tokenizer alone when that is not installed.
+        processor = AutoProcessor.from_pretrained(base, trust_remote_code=False)
+    except (ImportError, ValueError):
+        processor = AutoTokenizer.from_pretrained(base, trust_remote_code=False)
+    arch = (getattr(AutoConfig.from_pretrained(base, trust_remote_code=False), "architectures",
+                    None) or [""])[0]
+    auto_cls = AutoModelForImageTextToText if "ConditionalGeneration" in arch else AutoModelForCausalLM
+    kwargs = dict(quantization_config=quant, device_map={"": 0}, attn_implementation="sdpa",
+                  trust_remote_code=False)
+    try:
+        model = auto_cls.from_pretrained(base, dtype=dtype, **kwargs)
+    except TypeError:                      # transformers < 5 spelling
+        model = auto_cls.from_pretrained(base, torch_dtype=dtype, **kwargs)
+    return model, processor
+
+
+def _attach_adapter_plain(model, adapter_dir):
+    """peft's LoRA injection, scoped to the text stack.
+
+    The published adapter's `target_modules` are the usual projection names, and unsloth's
+    training-time model applied them everywhere those names appear -- including Gemma 4's vision
+    and audio towers, whose projections are `Gemma4ClippableLinear` wrappers. peft refuses those
+    (it wraps `nn.Linear`, bnb `Linear4bit` and a handful of others), so injecting by name dies on
+    the vision tower. The wrapper is unwrappable in principle but pointless here: a decision row
+    is text, so the tower LoRA is never executed, and the text stack is plain `Linear4bit`, which
+    peft handles natively. So the plain backend pins the targets to the language-model modules and
+    leaves the vision/audio weights unused, which is what a text-only deployment does anyway.
+    """
+    from peft import LoraConfig, PeftModel
+
+    cfg = LoraConfig.from_pretrained(str(adapter_dir))
+    names = set(cfg.target_modules or [])
+    keys = sorted(name for name, module in model.named_modules()
+                  if isinstance(module, (torch.nn.Linear, torch.nn.Embedding))
+                  and name.rsplit(".", 1)[-1] in names
+                  and not _is_auxiliary_tower(name))
+    if not keys:
+        raise SystemExit(f"no text-stack module matches the adapter targets {sorted(names)}")
+    cfg.target_modules = keys
+    return PeftModel.from_pretrained(model, str(adapter_dir), config=cfg)
+
+
+def _is_auxiliary_tower(name):
+    """True for the vision/audio stacks of a multimodal checkpoint (never executed on text)."""
+    return any(part in name for part in ("vision_tower", "audio_tower", "vision_model", "mm_projector"))
 
 
 def _resolve(ckpt, cache_dir=None):
