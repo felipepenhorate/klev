@@ -43,6 +43,36 @@ Both arms: identical accuracy, ~98 % identical choices, the same rows skipped, a
 comes from kernels rather than from the weights (unsloth's patched attention/quantised matmuls vs
 plain sdpa + bnb). Plain is *faster* to load and marginally faster per answer.
 
+## Every card row, re-scored on both loaders
+
+`eval/run_card_suites.py` scores all nine card suites in one model load per backend, through
+`eval/eval_decisions.py`'s `score_dataset` (the same function a single-suite run uses). The
+unsloth arm reproduced the published numbers exactly, which is the check that the two arms are
+comparable at all.
+
+| suite | n | unsloth | plain | delta | Brier A / B | choice agreement | max abs dp |
+|---|---|---|---|---|---|---|---|
+| decision-v7 dev | 1,468 | 0.8597 | 0.8597 | +0.000 | 0.227 / 0.226 | 100.0 % | 0.053 |
+| transfer-v4 dev | 764 | 0.7513 | 0.7513 | +0.000 | 0.360 / 0.361 | 99.7 % | 0.075 |
+| MMLU | 989 | 0.6572 | 0.6593 | +0.002 | 0.476 / 0.475 | 99.2 % | 0.059 |
+| ARC-Challenge | 1,000 | 0.8560 | 0.8560 | +0.000 | 0.206 / 0.206 | 99.8 % | 0.093 |
+| HellaSwag | 1,000 | 0.7520 | 0.7530 | +0.001 | 0.369 / 0.369 | 99.3 % | 0.083 |
+| Stanceosaurus (4 langs) | 5,923 | 0.4714 | 0.4714 | +0.000 | 0.732 / 0.732 | 98.8 % | 0.116 |
+| CoSt-BR | 718 | 0.3997 | 0.4039 | +0.004 | 0.805 / 0.806 | 98.5 % | 0.067 |
+| OOD multilingual | 4,000 | 0.7510 | 0.7502 | -0.001 | 0.383 / 0.383 | 99.6 % | 0.104 |
+| in-distribution multilingual | 3,128 | 0.7848 | 0.7839 | -0.001 | 0.317 / 0.317 | 99.6 % | 0.054 |
+
+Per-language worst case is 1.3 points (Belebele Polish 0.800 → 0.787, PAWS-X German
+0.600 → 0.613); Stanceosaurus per language moves by ≤0.002. The 0.8B arm was spot-checked the same
+way on 58 CoSt-BR rows: 0.3167 unsloth vs 0.3167 plain, 98.3 % identical choices.
+
+Two loaders, one set of weights:
+
+- **plain** -- the default install (`klev`): torch, transformers, peft, bitsandbytes. Faster to
+  load (69 s vs 92 s for the 4B base), same answers to within 0.4 pp anywhere.
+- **unsloth** -- the training stack (`klev[train]`, `--backend unsloth`): what the published
+  benchmark numbers were produced with, and what fine-tuning and teacher caching need.
+
 ## Conclusion
 
 **Unsloth is a training dependency, not an inference one.** A consumer of a published checkpoint

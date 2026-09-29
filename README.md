@@ -176,8 +176,9 @@ source scripts/rocm_env.sh
 
 Predictions do **not** need unsloth: the default install is torch + transformers + peft +
 bitsandbytes, and `load_klev(..., backend="plain")` (the default when `KLEV_BACKEND=plain`, or
-`--backend plain`) serves the same 4-bit checkpoint through plain transformers. Same accuracy,
-98 % identical choices — [docs/m15-plain-inference.md](docs/m15-plain-inference.md). Unsloth is
+`--backend plain`) serves the same 4-bit checkpoint through plain transformers. Every card row was re-scored on
+both loaders and moves by at most 0.4 pp (dev suite: 100 % identical choices) —
+[docs/m15-plain-inference.md](docs/m15-plain-inference.md). Unsloth is
 now the `train` extra, for fine-tuning and teacher caching: `pip install "klev[train] @ git+..."`.
 
 The library carries the loader, the pointer readout, the record format and both usage paths, so
